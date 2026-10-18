@@ -2,7 +2,7 @@ import json
 import subprocess
 from pathlib import Path
 
-from app import ai, db, mcp_server, places_store
+from app import ai, db, mcp_server, places_store, settings
 from app.modules.rank import engine
 
 
@@ -86,7 +86,7 @@ def test_ai_ask_command_line(monkeypatch):
     cmd = captured["cmd"]
     assert cmd[:2] == ["/usr/bin/claude", "-p"] and captured["input"] == "hi" and "--strict-mcp-config" in cmd
     assert cmd[cmd.index("--allowedTools") + 1] == "mcp__mapprospector__list_clients,WebSearch,WebFetch"
-    assert str(captured["cwd"]).endswith("mapprospector")
+    assert captured["cwd"] == settings.ROOT
     import sys
     server = json.loads(Path(cmd[cmd.index("--mcp-config") + 1]).read_text())["mcpServers"]["mapprospector"]
     assert server == {"command": sys.executable, "args": ["-m", "app.mcp_server"]}
