@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }} · {{ brand.name }}</title>
+  <script>try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
+  <link rel="stylesheet" href="/static/theme.css">
+  {% if brand.color and brand.color != "#2563eb" %}<style>:root, :root[data-theme] { --accent: {{ brand.color }}; }</style>{% endif %}
+  {% block head %}{% endblock %}
+  <style>.share-wrap { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; } @media print { .no-print { display: none !important; } }</style>
+</head>
+<body>
+<div class="share-wrap">
+  <div class="brand" style="padding-left:0">
+    {% if brand.logo %}<img src="{{ brand.logo }}" alt="">{% else %}<span class="brand-dot"></span>{% endif %}{{ brand.name }}
+  </div>
+  {% block content %}{% endblock %}
+  <p class="hint" style="margin-top:24px">{{ brand.name }}{% if brand.email %} · {{ brand.email }}{% endif %}</p>
+</div>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>New rank scan</h1><p>Pick a business, keywords and the area to cover. Each grid point is one search per keyword.</p></div>
+</div>
+{% if error %}<div class="notice bad">{{ error }}</div>{% endif %}
+{% if not modules.places and not modules.dataforseo %}
+<div class="notice warn">No Google Places or DataForSEO key is set, so only <b>Demo data</b> (fake businesses) is available. Add keys in <code>.env</code> for real scans.</div>
+{% endif %}
+<form method="post" action="/rank/new" id="scanform">
+<div class="grid grid-2">
+  <div class="card">
+    <h2>1 · Business</h2>
+    <input type="hidden" name="place_id" id="place_id" value="{{ place.id if place else '' }}">
+    <div id="chosen" class="notice" {% if not place %}hidden{% endif %}>
+      Selected: <b id="chosen-name">{{ place.name if place else "" }}</b> <span class="hint" id="chosen-addr">{{ place.address if place else "" }}</span>
+      <button type="button" class="btn-sm" onclick="clearPlace()">Change</button>
+    </div>
+    <div id="picker" {% if place %}hidden{% endif %}>
+      {% if modules.places %}
+      <div class="field"><label>Search Google for the business</label>
+        <div class="row"><input type="text" id="q" placeholder="e.g. Ridgeline Roofing Denver"><button type="button" onclick="searchPlaces()">Search</button></div>
+        <div id="results"></div>
+      </div>
+      {% endif %}
+      {% if saved %}
+      <div class="field"><label>…or a business you already saved</label>
+        <select onchange="if(this.value){const o=this.selectedOptions[0];pick(this.value,o.dataset.name,o.dataset.addr,+o.dataset.lat,+o.dataset.lng)}">
+          <option value="">Choose…</option>
+          {% for s in saved %}<option value="{{ s.id }}" data-name="{{ s.name }}" data-addr="{{ s.address or '' }}">{{ s.name }}{% if s.address %} — {{ s.address }}{% endif %}</option>{% endfor %}
+        </select></div>
+      {% endif %}
+      <details {% if not modules.places and not saved %}open{% endif %}>
+        <summary>…or enter it manually</summary>
+        <div class="field" style="margin-top:8px"><label>Business name (as on Google)</label><input type="text" name="manual_name" id="manual_name"></div>
+        <div class="row">
+          <div class="field"><label>Latitude</label><input type="text" name="manual_lat" id="manual_lat" placeholder="39.7392"></div>
+          <div class="field"><label>Longitude</label><input type="text" name="manual_lng" id="manual_lng" placeholder="-104.9903"></div>
+        </div>
+        <div class="field"><label>Website (for organic matching)</label><input type="url" name="manual_website"></div>
+        <button type="button" class="btn-sm" onclick="previewManual()">Preview on map</button>
+      </details>
+    </div>
+    <h2 style="margin-top:16px">2 · Keywords</h2>
+    <div class="field"><textarea name="keywords" placeholder="roofing&#10;roof repair near me" required style="min-height:70px" oninput="refresh()"></textarea>
+      <div class="hint">One per line or comma separated. Each keyword is its own scan.</div></div>
+    <div class="row">
+      <div class="field"><label>Data source</label>
+        <select name="provider" id="provider" onchange="syncSurfaces()">
+          {% for key, p in providers.items() %}<option value="{{ key }}" data-surfaces="{{ p.surfaces | join(',') }}">{{ p.label }}</option>{% endfor %}
+        </select></div>
+      <div class="field"><label>Surface</label>
+        <select name="surface" id="surface">{% for k, v in surfaces.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>3 · Grid</h2>
+    <div class="row">
+      <div class="field"><label>Size</label><select name="size" id="size" onchange="refresh()">{% for n in [3,5,7,9,11,13] %}<option value="{{ n }}" {% if n == 7 %}selected{% endif %}>{{ n }}×{{ n }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Spacing</label><input type="number" name="spacing" id="spacing" value="1" min="0.1" max="25" step="0.1" oninput="refresh()"></div>
+      <div class="field"><label>Unit</label><select name="unit" id="unit" onchange="refresh()"><option value="mi">miles</option><option value="km">km</option></select></div>
+      <div class="field"><label>Shape</label><select name="shape" id="shape" onchange="refresh()"><option value="square">Square</option><option value="circle">Circle</option></select></div>
+    </div>
+    <div id="map" class="map" style="height:340px"></div>
+    <p class="hint" id="cost" style="margin-top:8px"></p>
+    <h2 style="margin-top:12px">4 · Repeat (optional)</h2>
+    <div class="row">
+      <div class="field"><label>Repeat</label><select name="recurrence" id="recurrence">
+        <option value="">Run once</option>{% for k, v in recurrences.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Day</label><input type="number" name="day" min="0" max="31" placeholder="weekday 0=Mon or day of month"></div>
+      <div class="field"><label>Schedule name</label><input type="text" name="schedule_name"></div>
+    </div>
+    <button class="primary" type="submit">Run scan</button>
+  </div>
+</div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+let map = L.map("map").setView([{{ place.lat if place and place.lat else 39.5 }}, {{ place.lng if place and place.lng else -98.35 }}], {{ 12 if place and place.lat else 4 }});
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom: 19, attribution: "&copy; OpenStreetMap"}).addTo(map);
+let layer = L.layerGroup().addTo(map);
+let center = {% if place and place.lat %}[{{ place.lat }}, {{ place.lng }}]{% else %}null{% endif %};
+
+function syncSurfaces() {
+  const ok = document.getElementById("provider").selectedOptions[0].dataset.surfaces.split(",");
+  for (const o of document.getElementById("surface").options) o.disabled = !ok.includes(o.value);
+  const s = document.getElementById("surface"); if (s.selectedOptions[0].disabled) s.value = ok[0];
+}
+function kwCount() { return document.querySelector("[name=keywords]").value.split(/[\n,]/).filter(s => s.trim()).length || 1; }
+async function refresh() {
+  if (!center) return;
+  const q = new URLSearchParams({lat: center[0], lng: center[1], size: size.value, spacing: spacing.value, unit: unit.value, shape: shape.value, keywords: kwCount()});
+  const r = await fetch("/api/grid-preview?" + q); const d = await r.json();
+  layer.clearLayers();
+  if (d.error) { document.getElementById("cost").textContent = d.error; return; }
+  const ll = d.points.map(p => [p.lat, p.lng]);
+  ll.forEach(p => L.circleMarker(p, {radius: 5, color: "#2563eb", weight: 1, fillOpacity: .6}).addTo(layer));
+  L.marker(center).addTo(layer);
+  map.fitBounds(ll, {padding: [20, 20]});
+  document.getElementById("cost").textContent = `${d.points.length} points × ${kwCount()} keyword(s) = ${d.requests} searches (API requests billed by your provider).`;
+}
+function pick(id, name, addr, lat, lng) {
+  place_id.value = id; document.getElementById("chosen-name").textContent = name;
+  document.getElementById("chosen-addr").textContent = addr || "";
+  chosen.hidden = false; picker.hidden = true;
+  if (lat && lng) { center = [lat, lng]; refresh(); }
+  else fetch(`/api/places/${id}`).then(r => r.json()).then(p => { if (p.lat) { center = [p.lat, p.lng]; refresh(); } });
+}
+function clearPlace() { place_id.value = ""; chosen.hidden = true; picker.hidden = false; }
+function previewManual() {
+  const lat = parseFloat(manual_lat.value), lng = parseFloat(manual_lng.value);
+  if (!isNaN(lat) && !isNaN(lng)) { center = [lat, lng]; refresh(); }
+}
+async function searchPlaces() {
+  const r = await fetch("/api/places/search?q=" + encodeURIComponent(q.value));
+  const d = await r.json(); const box = document.getElementById("results"); box.innerHTML = "";
+  if (d.error) { box.textContent = d.error; return; }
+  d.results.forEach(p => {
+    const b = document.createElement("button"); b.type = "button"; b.className = "btn-sm"; b.style.margin = "4px 4px 0 0";
+    b.textContent = `${p.name} — ${p.address || ""}`;
+    b.onclick = () => pick(p.id, p.name, p.address, p.lat, p.lng); box.appendChild(b);
+  });
+}
+syncSurfaces(); refresh();
+</script>
+{% endblock %}

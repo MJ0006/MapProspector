@@ -1,0 +1,8 @@
+{"status_code": 20000, "tasks": [{"status_code": 20000, "status_message": "Ok.", "result": [{"keyword": "roofing",
+  "items": [
+    {"type": "maps_search", "rank_group": 2, "rank_absolute": 2, "title": "Ridgeline Roofing", "place_id": "ChIJ_target_1", "cid": "111",
+     "rating": {"value": 4.6, "votes_count": 87}, "category": "Roofing contractor", "additional_categories": ["Gutter service"],
+     "url": "https://ridgeline.example", "domain": "ridgeline.example", "address": "100 Main St", "latitude": 39.7392, "longitude": -104.9903, "total_photos": 40},
+    {"type": "maps_search", "rank_group": 1, "rank_absolute": 1, "title": "Summit Roofing Group", "place_id": "ChIJ_comp_2", "cid": "222",
+     "rating": {"value": 4.9, "votes_count": 310}, "category": "Roofing contractor", "latitude": 39.75, "longitude": -104.99}
+  ]}]}]}

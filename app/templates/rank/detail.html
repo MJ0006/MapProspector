@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/static/heatmap.js"></script>
+<style>@media print { .sidebar, .no-print { display: none !important; } .layout { display: block; } }</style>
+{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>"{{ scan.keyword }}" · {{ place.name if place else "—" }}</h1>
+    <p>{{ surfaces[scan.surface] }} · {{ scan.grid_size }}×{{ scan.grid_size }} {{ scan.shape }} grid,
+      {{ "%.1f" | format(scan.spacing_m / 1609.344) }} mi spacing · {{ providers[scan.provider].label }} · {{ (scan.created_at or "")[:16].replace("T", " ") }} UTC</p>
+  </div>
+  <div class="actions no-print">
+    <form method="post" action="/rank/{{ scan.id }}/rerun"><button>Run again</button></form>
+    <form method="post" action="/rank/{{ scan.id }}/share"><button>Share link</button></form>
+    <button type="button" onclick="window.print()">Print / PDF</button>
+    {% if place %}<a class="btn" href="/leads/save?place_id={{ place.id }}">Save as lead</a>{% endif %}
+    <form method="post" action="/rank/{{ scan.id }}/delete" onsubmit="return confirm('Delete scan?')"><button class="btn-danger">Delete</button></form>
+  </div>
+</div>
+{% if scan.provider == "demo" %}<div class="notice warn">Demo data: these businesses and rankings are fake. Add a Places or DataForSEO key for real scans.</div>{% endif %}
+{% if scan.provider == "places" %}<div class="notice">Google Places mode approximates a searcher at each point (location-biased search). Use DataForSEO for true per-point SERP results.</div>{% endif %}
+{% if scan.share_token %}<div class="notice no-print" id="share">View-only link: <a href="/share/scan/{{ scan.share_token }}">/share/scan/{{ scan.share_token }}</a> (works while this app is reachable).</div>{% endif %}
+{% if scan.status in ("queue", "in_progress") %}
+<div class="notice" id="progress">Scanning… <span id="pdone">0</span> points done. This page refreshes when finished.</div>
+{% elif scan.error %}<div class="notice {{ 'bad' if scan.status == 'failed' else 'warn' }}">{{ scan.error }}</div>{% endif %}
+{% include "rank/_report.html" %}
+{% endblock %}
+{% block scripts %}
+<script>
+renderHeatmap("/rank/{{ scan.id }}/data");
+{% if scan.status in ("queue", "in_progress") %}
+const poll = setInterval(async () => {
+  const s = await (await fetch("/rank/{{ scan.id }}/status")).json();
+  document.getElementById("pdone").textContent = s.points_done;
+  if (!["queue", "in_progress"].includes(s.status)) { clearInterval(poll); location.reload(); }
+}, 2500);
+{% endif %}
+</script>
+{% endblock %}
