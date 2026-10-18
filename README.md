@@ -2,6 +2,8 @@
 
 A personal, local app to find local-business clients and run their local SEO.
 
+**[⬇ Download for Windows (latest)](https://github.com/MJ0006/MapProspector/releases/latest/download/MapProspector-Setup.exe)**: the newest installer, rebuilt and tested after every change to `main`. Sign in to GitHub first (the repo is private). Install over the old version; your data is kept.
+
 It covers the feature set of LeadSnap (found by inspecting leadsnap.com's public pages with [rea](https://github.com/morluto/rea); see [docs/feature-catalog.md](docs/feature-catalog.md)). The SEO logic comes from [Local SEO Brain](https://github.com/AI-Marketing-Hub/local-seo-brain), which is vendored unmodified in `vendor/local-seo-brain`.
 
 | Area | What you get |
@@ -39,7 +41,7 @@ If you cloned without `--recurse-submodules`, run `git submodule update --init` 
 
 `desktop/` turns MapProspector into a normal Windows app with a Start-menu shortcut. It is the same app with every feature: the installer carries its own Python and starts the server for you.
 
-**Get the installer:** on GitHub, open **Actions → Windows app**, pick the latest green run (or click **Run workflow**), and download **MapProspector-Setup** under *Artifacts*. Unzip it and run `MapProspector-Setup-<version>.exe`. The installer isn't code-signed, so Windows SmartScreen shows a warning the first time: click **More info → Run anyway**. Pushing a tag like `desktop-v1.0.0` also puts the installer on a GitHub Release.
+**Get the installer:** click **[Download for Windows (latest)](https://github.com/MJ0006/MapProspector/releases/latest/download/MapProspector-Setup.exe)** (also under **Releases** on the repo's front page) and run `MapProspector-Setup.exe`. Every green build of `main` replaces it, so that link always gives the newest tested version. Builds of other branches are under **Actions → Windows app → a run → Artifacts**. The installer isn't code-signed, so Windows SmartScreen shows a warning the first time: click **More info → Run anyway**. Pushing a tag like `desktop-v1.0.0` also puts the installer on a GitHub Release.
 
 - **AI:** install at least one [AI platform](#ai-platforms) on the laptop and sign in (Settings → AI platforms → **Sign in** opens it for you). The app finds the tools on PATH or in their usual install folders.
 - **Keys:** paste them on **Settings → API keys** and press **Save keys**; they work right away. (Or **File → Open the .env file** to edit it directly, then **File → Restart server**.)
