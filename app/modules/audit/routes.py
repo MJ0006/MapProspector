@@ -10,17 +10,27 @@ from app.web import redirect, render, row_or_404
 router = APIRouter()
 
 # Content tools offered on /tools, grouped. Keys are wiki/prompts/<name>.md in local-seo-brain.
+# Every prompt in Local SEO Brain's wiki/prompts, in the order you'd use them (review steps follow their drafts).
 TOOLS = {
-    "Google Business Profile": ["gbp-description-claude-prompt-1", "gbp-categories-prompt", "gbp-services-prompt"],
-    "Website": ["prompt-generating-a-title-tag", "prompt-generating-a-meta-description", "schema-prompt-1",
-                "ai-homepage-rewrite-prompt", "prompt-rewriting-existing-service-page", "ai-supporting-pages-rewrite-prompt"],
-    "Content plan": ["keyword-research-prompt", "keyword-variations-for-topical-relevance-prompt",
-                     "content-planning-for-topical-relevance-prompt", "prompt-core-30-content-audit",
-                     "blog-post-outline-prompt", "blog-post-writing-prompt", "paa-question-rewording-prompt"],
+    "Google Business Profile": ["gbp-description-claude-prompt-3", "gbp-description-claude-prompt-1",
+                                "gbp-description-claude-prompt-2", "gbp-categories-prompt", "gbp-services-prompt"],
+    "Website": ["prompt-generating-a-title-tag", "prompt-generating-a-meta-description", "ai-homepage-rewrite-prompt",
+                "prompt-rewriting-existing-homepage", "prompt-rewriting-existing-service-page",
+                "ai-supporting-pages-rewrite-prompt"],
+    "Structured data": ["schema-prompt-1", "claude-prompt-1", "claude-prompt-2", "follow-up-prompt"],
+    "Content plan": ["prompt-audience-avatar", "keyword-research-prompt", "keyword-variations-for-topical-relevance-prompt",
+                     "content-planning-for-topical-relevance-prompt", "content-prioritization-prompt",
+                     "prompt-core-30-content-audit", "paa-question-rewording-prompt"],
+    "Articles": ["blog-post-outline-prompt", "blog-post-writing-prompt", "follow-up-prompt-1", "follow-up-prompt-2",
+                 "ai-detector-test-follow-up-prompt"],
     "Audits": ["technical-audit-prompt", "ctr-audit-prompt", "property-content-with-authority-audit-prompt",
-               "backlink-competition-prompt"],
-    "AI search": ["visiblity-prompt", "visibility-follow-up-prompt", "reddit-claude-prompt"],
+               "backlink-competition-prompt", "claude-deep-research-prompt"],
+    "AI search": ["visiblity-prompt", "visibility-follow-up-prompt", "step-1-the-chatgpt-discovery-prompt",
+                  "step-2-the-follow-up-qualifying-prompt", "reddit-claude-prompt"],
 }
+# Which current-doctrine note (references/canon) goes with each group: 001 Business Profile, 002 content and spam,
+# 003 local, structured data and AI search.
+DOCTRINE = {"Google Business Profile": 1, "Website": 2, "Content plan": 2, "Articles": 2}
 
 
 def run_audit(audit_id: int) -> None:
@@ -140,10 +150,12 @@ def tools_run(request: Request, prompt: str = Form(...), business_name: str = Fo
               services: str = Form(""), website: str = Form(""), category: str = Form(""),
               audience: str = Form(""), extra: str = Form(""), company_id: str = Form("")):
     facts = {"Business name": business_name, "City / service area": city, "Primary category": category,
-             "Services": services, "Website": website, "Audience": audience, "Other confirmed facts": extra}
+             "Services": services, "Website": website, "Audience": audience,
+             "Other confirmed facts, or the material to work on": extra}
     lessons = journal.prompt_block("tools", int(company_id) if company_id.isdigit() else None)
     try:
-        full_prompt = brain.build_prompt(prompt, facts, doctrine_no=1 if prompt.startswith("gbp") else 3, extra=lessons)
+        full_prompt = brain.build_prompt(prompt, facts, doctrine_no=next(
+            (DOCTRINE.get(g, 3) for g, names in TOOLS.items() if prompt in names), 3), extra=lessons)
     except brain.BrainError as exc:
         raise HTTPException(400, str(exc))
     error, output = "", ""

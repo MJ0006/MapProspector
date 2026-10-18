@@ -46,10 +46,12 @@ def _today() -> str:
     return date.today().isoformat()
 
 
-def _run(script: str, *args: str) -> str:
+def _run(script: str, *args: str, ok: tuple[int, ...] = (0,)) -> str:
     env = None
     if os.name == "nt":  # the brain is written for macOS/Linux; app/winshim fills the gaps on Windows
-        env = {**os.environ, "PYTHONPATH": os.pathsep.join(filter(None, [str(WINSHIM), os.environ.get("PYTHONPATH")]))}
+        # PYTHONUTF8: the brain reads its notes with open()/read_text() defaults, which are cp1252 on Windows
+        env = {**os.environ, "PYTHONUTF8": "1",
+               "PYTHONPATH": os.pathsep.join(filter(None, [str(WINSHIM), os.environ.get("PYTHONPATH")]))}
     try:
         proc = subprocess.run([sys.executable, str(settings.BRAIN_DIR / "scripts" / script), *args],
                               capture_output=True, text=True, encoding="utf-8", errors="replace",
@@ -58,7 +60,7 @@ def _run(script: str, *args: str) -> str:
         raise BrainError(f"{script} did not finish within 5 minutes")
     except OSError as exc:  # e.g. vendor/local-seo-brain missing (clone without --recurse-submodules)
         raise BrainError(f"could not run {script}: {exc}")
-    if proc.returncode != 0:
+    if proc.returncode not in ok:
         raise BrainError((proc.stderr or proc.stdout).strip()[-800:])
     return proc.stdout.strip()
 
@@ -112,6 +114,77 @@ def vault_sources(slug: str) -> list[str]:
     if not folder.exists():
         return []
     return sorted(p.stem for p in folder.glob("*.md") if not p.name.startswith("_"))
+
+
+# --- Brain panel: next action, vault health, evidence age, relationship map -----------------
+
+EVIDENCE_MAX_DAYS = 30  # MapProspector's reminder to re-export client data monthly (not a Brain or Google rule)
+SOURCE_KINDS = {"gbp": "Google Business Profile export", "reviews": "Reviews export",
+                "citations": "Citations export", "geogrid": "Geo-grid scan"}
+
+
+def _plain(text: str) -> str:
+    """Obsidian [[Target|Label]] links as plain words."""
+    return re.sub(r"\[\[(?:[^\]|]*\|)?([^\]]*)\]\]", r"\1", text)
+
+
+def next_action(slug: str) -> dict:
+    """guide_next_action.py: the vault's next step, or the notes past their review date (which it puts first)."""
+    if not (vault_path(slug) / "wiki" / "hot.md").exists():
+        raise BrainError(f"The vault folder is missing or incomplete: {vault_path(slug)}")
+    out = _run("guide_next_action.py", "--vault", str(vault_path(slug)), "--as-of", _today(), ok=(0, 1))
+    if not out.startswith("Next:"):  # exit 1 is also used for errors, which go to stderr
+        raise BrainError("guide_next_action.py could not read this vault's evidence metadata")
+    out = out.removeprefix("Next:").strip()
+    due = []
+    m = re.match(r"refresh evidence before client recommendations:\s*(.*)", out, re.S)
+    if m:
+        due = [d.strip() for d in m.group(1).split(",") if d.strip()]
+        out = ""
+    # The vault template's first steps tell an operator to run the brain's scripts; this panel already does that.
+    steps = [_plain(re.sub(r"^\d+\.\s*", "", line)).strip() for line in out.splitlines()]
+    steps = [s for s in steps if s and ".py" not in s]
+    return {"steps": steps, "due": due}
+
+
+def lint(slug: str) -> dict:
+    """lint_vault.py: frontmatter, links and graph checks for the client's vault."""
+    try:
+        out = _run("lint_vault.py", "--vault", str(vault_path(slug)))
+        return {"ok": True, "lines": [l for l in out.splitlines() if l.strip()]}
+    except BrainError as exc:
+        if "Traceback" in str(exc):  # the script crashed: that's not a finding about the vault
+            raise
+        return {"ok": False, "lines": [l for l in str(exc).splitlines() if l.strip()][-40:]}
+
+
+def relationship_map(slug: str) -> Path:
+    """generate_vault_visuals.py: the vault's relationship map (SVG), created on first use."""
+    path = vault_path(slug) / "_attachments" / "brain-relationship-map.svg"
+    if not (vault_path(slug) / "wiki").is_dir():
+        raise BrainError(f"The vault folder is missing or incomplete: {vault_path(slug)}")
+    if not path.exists():
+        _run("generate_vault_visuals.py", "--vault", str(vault_path(slug)))
+    return path
+
+
+def evidence_age(slug: str) -> list[dict]:
+    """The newest import of each evidence type, with its age in days (from the source note's created date)."""
+    newest: dict[str, dict] = {}
+    for p in (vault_path(slug) / "wiki" / "sources").glob("*.md"):
+        kind = next((k for k in SOURCE_KINDS if p.name.startswith(f"{k}-")), None)
+        m = re.search(r'^created:\s*"?(\d{4}-\d{2}-\d{2})', p.read_text(encoding="utf-8", errors="replace"), re.M)
+        if kind and m and (kind not in newest or m.group(1) > newest[kind]["date"]):
+            newest[kind] = {"date": m.group(1)}
+    out = []
+    for kind, label in SOURCE_KINDS.items():
+        row = {"kind": kind, "label": label, "date": None, "days": None, "stale": False}
+        if kind in newest:
+            row["date"] = newest[kind]["date"]
+            row["days"] = (date.fromisoformat(_today()) - date.fromisoformat(row["date"])).days
+            row["stale"] = row["days"] > EVIDENCE_MAX_DAYS
+        out.append(row)
+    return out
 
 
 # --- knowledge ----------------------------------------------------------------------

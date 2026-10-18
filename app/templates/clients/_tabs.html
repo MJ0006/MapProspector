@@ -3,12 +3,12 @@
     <p>{{ co.website or "" }}{% if co.gbp_location %} · <span class="badge good">Google linked</span>{% elif connected %} · <a href="/clients/{{ co.id }}/link">link Google location</a>{% else %} · <span class="badge">draft mode</span>{% endif %}</p></div>
 </div>
 <div class="actions" style="margin-bottom:16px">
-  {% for key, label, href in [("overview", "Overview & plan", ""), ("posts", "Posts", "/posts"), ("reviews", "Reviews", "/reviews"),
+  {% for key, label, href in [("overview", "Overview & plan", ""), ("brain", "Brain", "/brain"), ("posts", "Posts", "/posts"), ("reviews", "Reviews", "/reviews"),
      ("photos", "Photos", "/photos"), ("lock", "Profile lock", "/lock"), ("insights", "Insights", "/insights"),
      ("optimize", "Optimize", "/optimize"), ("citations", "Citations", "/citations"), ("reports", "Reports", "/reports")] %}
   <a class="btn {{ 'btn-primary' if tab == key else '' }}" href="/clients/{{ co.id }}{{ href }}">{{ label }}</a>
   {% endfor %}
 </div>
-{% if not connected and tab not in ("overview", "citations", "reports") %}
+{% if not connected and tab not in ("overview", "brain", "citations", "reports") %}
 <div class="notice">Draft mode: MapProspector drafts and tracks; you copy into Google Business Profile. Connect a Google account with approved Business Profile API access (Settings) to publish from here.</div>
 {% endif %}

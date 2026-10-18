@@ -149,6 +149,48 @@ def client_synthesize(company_id: int):
     return redirect(f"/clients/{company_id}")
 
 
+@router.get("/clients/{company_id}/brain")
+def client_brain(request: Request, company_id: int):
+    """The Local SEO Brain's own checks for this client's vault: next action, vault health, evidence age, map."""
+    co = company_or_404(company_id)
+    if not co["vault_slug"]:
+        raise HTTPException(404, "This business has no Local SEO Brain vault.")
+    slug, error, action, health = co["vault_slug"], "", {"steps": [], "due": []}, None
+    try:
+        action = brain.next_action(slug)
+        health = brain.lint(slug)
+    except brain.BrainError as exc:
+        error = str(exc)
+    # Past-review notes are the Brain's reference copies (Google policy, prompts), grouped by folder.
+    due: dict[str, list[str]] = {}
+    for item in action["due"]:
+        if not item.startswith("wiki/"):
+            folder = "Google sources"  # source-ledger ids
+        else:
+            folder = item.split("/")[1] if item.count("/") >= 2 else "vault notes"  # wiki/hot.md etc.
+        due.setdefault(folder, []).append(item.rsplit("/", 1)[-1].removesuffix(".md"))
+    from app.modules.audit.routes import TOOLS
+    from app.providers import gbp_api
+    return render(request, "clients/brain.html", title=f"{co['name']}: Brain", co=co, tab="brain",
+                  connected=gbp_api.connected(), action=action, due=due, health=health, error=error,
+                  evidence=brain.evidence_age(slug), max_days=brain.EVIDENCE_MAX_DAYS,
+                  prompt_count=sum(len(v) for v in TOOLS.values()), vault=str(brain.vault_path(slug)))
+
+
+@router.get("/clients/{company_id}/brain/map.svg")
+def client_brain_map(company_id: int):
+    co = company_or_404(company_id)
+    if not co["vault_slug"]:
+        raise HTTPException(404)
+    try:
+        path = brain.relationship_map(co["vault_slug"])
+    except brain.BrainError as exc:
+        raise HTTPException(502, str(exc))
+    # Opened full size it is a page on the app's address: an SVG edited in the vault must not run scripts here.
+    return FileResponse(path, media_type="image/svg+xml",
+                        headers={"Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'self'"})
+
+
 @router.get("/clients/{company_id}/weekly-report")
 def client_weekly_report(company_id: int):
     co = company_or_404(company_id)
