@@ -18,7 +18,9 @@
 <div class="layout">
   <aside class="sidebar">
     <div class="brand">
-      {% if brand.logo %}<img src="{{ brand.logo }}" alt="">{% else %}<span class="brand-dot"></span>{% endif %}
+      {# Your own logo (Settings → Branding) wins; otherwise the MapProspector mark (docs/brand/). #}
+      {% if brand.logo %}<img src="{{ brand.logo }}" alt="">
+      {% else %}<img class="mark-light" src="/static/favicon.svg" alt=""><img class="mark-dark" src="/static/mark-dark.svg" alt="">{% endif %}
       {{ brand.name }}
     </div>
     {% for group, links in nav %}

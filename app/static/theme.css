@@ -51,6 +51,13 @@ pre { background: var(--surface-2); padding: 12px; border-radius: 8px; overflow:
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 16px; padding: 4px 8px 16px; }
 .brand img { height: 26px; }
 .brand-dot { width: 22px; height: 22px; border-radius: 6px; background: var(--accent); }
+.brand .mark-dark { display: none; }  /* light panels of the mark for dark backgrounds (docs/brand/logo-dark.svg) */
+:root[data-theme="dark"] .brand .mark-light { display: none; }
+:root[data-theme="dark"] .brand .mark-dark { display: inline; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .brand .mark-light { display: none; }
+  :root:not([data-theme="light"]) .brand .mark-dark { display: inline; }
+}
 .nav-group { margin-bottom: 14px; }
 .nav-group > span { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 0 8px 4px; }
 .nav-group a { display: block; padding: 6px 8px; border-radius: 6px; color: var(--text); }
