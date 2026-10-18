@@ -79,7 +79,7 @@ def resume(name: str) -> None:
 # --- asking ---------------------------------------------------------------------------------------
 
 def candidates(*, web: bool = False, mcp: bool = False, only: str | None = None) -> list[Platform]:
-    names = [only] if only else order()
+    names = [n for n in order() if n == only] if only else order()  # switched off means off, even for only=
     return [PLATFORMS[n] for n in names if n in PLATFORMS and (not web or PLATFORMS[n].web)
             and (not mcp or PLATFORMS[n].mcp) and PLATFORMS[n].installed() and not paused(n)]
 
@@ -114,6 +114,8 @@ def ask(prompt: str, *, web: bool = False, timeout: int = TIMEOUT, tools: list[s
                 "prompt_head": prompt[:300]}
         try:
             text = p.run(prompt, web=web, mcp=mcp, tools=list(tools or []), timeout=timeout)
+            if not text.strip():
+                raise PlatformError(f"{p.label} returned an empty reply.")
         except PlatformError as exc:
             journal.record(purpose, "ai_call", "ask", "failed", detail=f"{p.label}: {exc}",
                            data={**meta, "ms": int((time.monotonic() - t0) * 1000), "error_kind": exc.kind})
@@ -128,8 +130,10 @@ def ask(prompt: str, *, web: bool = False, timeout: int = TIMEOUT, tools: list[s
         _local.platform = p.name
         return text
     if not tried:
-        raise AIUnavailable(f"{PLATFORMS[only].label} is not ready." if only in PLATFORMS
-                            else missing_message(web=web, mcp=mcp))
+        if only in PLATFORMS:
+            state = "switched off on Settings → AI platforms" if only not in order() else "not ready"
+            raise AIUnavailable(f"{PLATFORMS[only].label} is {state}.")
+        raise AIUnavailable(missing_message(web=web, mcp=mcp))
     raise AIUnavailable("No AI platform could answer. " + " | ".join(tried))
 
 
@@ -150,12 +154,12 @@ def extract_json(text: str):
     text = text.strip()
     if text.startswith("```"):
         text = text.split("\n", 1)[1].rsplit("```", 1)[0]
-    for opener in ("{", "["):
-        start = text.find(opener)
-        if start == -1:
-            continue
+    # The first "{" or "[" that starts valid JSON wins, so a list of objects comes back whole and a stray
+    # brace in prose ("{business name}") doesn't hide the real JSON after it.
+    decoder = json.JSONDecoder()
+    for m in re.finditer(r"[\[{]", text):
         try:
-            return json.JSONDecoder().raw_decode(text[start:])[0]
+            return decoder.raw_decode(text[m.start():])[0]
         except ValueError:
             continue
     raise ValueError("No JSON found in AI reply")
@@ -172,9 +176,6 @@ def status() -> list[dict]:
         installed = p.installed()
         pause = paused(name)
         signed = p.signed_in() if installed else False
-        if pause and pause["kind"] == "auth" and signed:
-            resume(name)  # you signed in since
-            pause = None
         out.append({"name": name, "label": p.label, "on": name in on, "installed": installed, "signed_in": signed,
                     "paused": pause, "web": p.web, "mcp": p.mcp, "install": p.install,
                     "signin": " ".join(p.signin) if p.signin else ""})

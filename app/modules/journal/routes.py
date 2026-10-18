@@ -11,6 +11,7 @@ router = APIRouter()
 
 @router.get("/journal")
 def journal_page(request: Request, area: str = "", kind: str = "", outcome: str = "", days: int = 30):
+    days = max(1, min(days, 3650))
     sql, args = "SELECT * FROM events WHERE created_at >= ?", [
         (datetime.now(timezone.utc) - timedelta(days=days)).isoformat(timespec="seconds")]
     for col, val in (("area", area), ("kind", kind), ("outcome", outcome)):
@@ -75,4 +76,13 @@ def weekly_reflection() -> None:
         new = db.one("SELECT COUNT(*) n FROM events WHERE kind = 'decision' AND area = ? AND outcome IN ('edited','rejected') "
                      "AND created_at >= ?", area, last or "0")["n"]
         if new >= 3:
-            journal.propose_lessons(area)
+            # In the background (AI calls take minutes and would hold up every other tick), one job per area so a
+            # failure in one doesn't skip the rest.
+            jobs.submit(_propose_safely, area)
+
+
+def _propose_safely(area: str) -> None:
+    try:
+        journal.propose_lessons(area)
+    except Exception as exc:
+        journal.failure("journal", "propose_lessons", exc, data={"area": area})

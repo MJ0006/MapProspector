@@ -10,18 +10,21 @@ _tags_cache: dict = {}
 
 
 def base_url() -> str:
-    host = settings.env("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
-    return host if host.startswith("http") else f"http://{host}"
+    """OLLAMA_HOST as Ollama itself accepts it ("0.0.0.0", "host:port", "http://host") turned into a URL to call."""
+    host = settings.env("OLLAMA_HOST", "127.0.0.1:11434").rstrip("/")
+    url = httpx.URL(host if "://" in host else f"http://{host}")
+    hostname = "127.0.0.1" if url.host in ("", "0.0.0.0", "::", "[::]") else url.host
+    return f"{url.scheme}://{hostname}:{url.port or 11434}"
 
 
 def client(timeout: float) -> httpx.Client:  # tests swap this for a fake transport
-    return httpx.Client(timeout=timeout)
+    return httpx.Client(timeout=httpx.Timeout(timeout, connect=min(timeout, 0.5)))
 
 
 def models() -> list[str] | None:
     """Installed model names, or None when Ollama isn't running. Cached for 30 seconds."""
     hit = _tags_cache.get(base_url())
-    if hit and time.monotonic() - hit[0] < 30:
+    if hit and time.monotonic() - hit[0] < (30 if hit[1] is not None else 60):  # page renders call this
         return hit[1]
     try:
         with client(2) as http:

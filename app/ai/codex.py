@@ -39,6 +39,7 @@ class Codex(Platform):
             out = (proc.stdout or "") + (proc.stderr or "")
             ok = proc.returncode == 0 and "Logged in" in out and "Not logged in" not in out
         except (OSError, subprocess.TimeoutExpired):
+            _status_cache[exe] = (time.monotonic(), None)  # don't make every Settings load wait 15 s again
             return None
         _status_cache[exe] = (time.monotonic(), ok)
         return ok

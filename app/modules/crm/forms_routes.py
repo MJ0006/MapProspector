@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from app import db, settings
 from app.modules.crm import automations, spam
-from app.web import redirect, render
+from app.web import redirect, render, row_or_404
 
 router = APIRouter()
 
@@ -70,7 +70,7 @@ def rule_delete(rid: int):
 
 @router.post("/crm/submissions/{sid}/not-spam")
 def submission_not_spam(sid: int):
-    s = db.one("SELECT * FROM form_submissions WHERE id = ?", sid)
+    s = row_or_404("form_submissions", sid)
     db.update("form_submissions", sid, is_spam=0, spam_reason=None)
     if s["contact_id"]:
         db.update("contacts", s["contact_id"], is_spam=0, spam_reason=None)
@@ -131,7 +131,9 @@ async def public_form_submit(request: Request, token: str):
     for f in form["fields"]:
         if f.get("required") and not data.get(f["name"]):
             raise HTTPException(400, f"{f['label']} is required")
-    ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "").split(",")[0].strip()
+    peer = request.client.host if request.client else ""
+    # X-Forwarded-For only counts when it comes from a tunnel on this computer; otherwise a bot could fake any IP.
+    ip = request.headers.get("x-forwarded-for", peer).split(",")[0].strip() if peer in ("127.0.0.1", "::1") else peer
     ingest_submission(form, data, ip or None, request.headers.get("cf-ipcountry"))
     if "application/json" in request.headers.get("accept", ""):
         return JSONResponse({"ok": True})

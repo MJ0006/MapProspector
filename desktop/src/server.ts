@@ -69,6 +69,24 @@ function envValue(file: string, key: string): string {
   }
 }
 
+function killChildren(pid: number | undefined): Promise<void> {
+  if (!pid) return Promise.resolve();
+  return new Promise((resolve) => {
+    const done = () => resolve();
+    if (process.platform === 'win32') {
+      const ps = `Get-CimInstance Win32_Process -Filter "ParentProcessId=${pid}" | ForEach-Object { taskkill /PID $_.ProcessId /T /F | Out-Null }`;
+      const k = spawn('powershell', ['-NoProfile', '-NonInteractive', '-Command', ps], { windowsHide: true });
+      k.on('exit', done);
+      k.on('error', done);
+      setTimeout(done, 8_000);
+    } else {
+      const k = spawn('pkill', ['-TERM', '-P', String(pid)], { stdio: 'ignore' }); // the server's direct children
+      k.on('exit', done);
+      k.on('error', done);
+    }
+  });
+}
+
 export class Server {
   private child: ChildProcess | null = null;
   private stopping = false;
@@ -120,6 +138,7 @@ export class Server {
     child.stderr?.pipe(log, { end: false });
 
     let exited = false;
+    let ready = false;
     let spawnError = '';
     child.on('error', (err) => {
       spawnError = err.message;
@@ -129,7 +148,8 @@ export class Server {
       exited = true;
       log.write(`--- server exited (code ${code})\n`);
       if (this.child === child) this.child = null;
-      if (!this.stopping) this.onCrash(code);
+      // A failure while starting is reported once, by start() throwing; onCrash is for a server that was running.
+      if (!this.stopping && ready) this.onCrash(code);
     });
 
     const deadline = Date.now() + 90_000;
@@ -137,7 +157,10 @@ export class Server {
       if (exited || spawnError) throw new Error(spawnError || 'The server stopped while starting.');
       try {
         const r = await fetch(`${this.url}/static/favicon.svg`);
-        if (r.ok) return this.url;
+        if (r.ok) {
+          ready = true;
+          return this.url;
+        }
       } catch {
         // not listening yet
       }
@@ -151,15 +174,17 @@ export class Server {
     if (!child || child.exitCode !== null) return;
     this.stopping = true;
     const done = new Promise<void>((resolve) => child.once('exit', () => resolve()));
+    // First end what the server started (a running `claude`/`codex` call, a Local SEO Brain script), which would
+    // otherwise keep running and keep files open; then ask the server itself to stop cleanly.
+    await killChildren(child.pid);
     child.stdin?.write('quit\n'); // clean stop: the scheduler and database close properly
     const timer = setTimeout(() => {
       if (process.platform === 'win32') {
-        // /T also ends a running `claude` or Local SEO Brain process started by the server.
         spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true });
       } else {
         child.kill('SIGKILL');
       }
-    }, 20_000);
+    }, 12_000); // before app/desktop_run.py's own 15 s exit, so the whole tree is still reachable
     await done;
     clearTimeout(timer);
   }

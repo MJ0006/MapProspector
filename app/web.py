@@ -3,7 +3,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import Request
+from fastapi import HTTPException, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
@@ -28,6 +28,15 @@ def _localtime(value, fmt: str = "%Y-%m-%d %H:%M") -> str:
 
 
 templates.env.filters["localtime"] = _localtime
+
+
+def _safe_url(value) -> str:
+    """Only http(s) links from scraped data (business websites, Maps, directory listings); never javascript: etc."""
+    v = str(value or "").strip()
+    return v if v.lower().startswith(("http://", "https://")) else ""
+
+
+templates.env.filters["safe_url"] = _safe_url
 
 NAV = [
     ("Prospecting", [
@@ -57,6 +66,14 @@ NAV = [
         ("/settings", "Settings"),
     ]),
 ]
+
+
+def row_or_404(table: str, row_id: int) -> dict:
+    """The row, or a 404 page (a stale page or an old link) instead of a crash."""
+    row = db.one(f"SELECT * FROM {table} WHERE id = ?", row_id)
+    if not row:
+        raise HTTPException(404, "Not found. It may have been deleted.")
+    return row
 
 
 def render(request: Request, name: str, **ctx):

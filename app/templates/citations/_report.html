@@ -22,7 +22,7 @@
       <td><b>{{ l.directory }}</b>{% if l.claimable == 1 %} <span class="badge warn">unclaimed</span>{% endif %}<div class="hint">{{ l.checked_by or "" }}</div></td>
       <td><span class="badge {{ 'good' if l.status == 'live' else 'bad' if l.status == 'wrong' else 'info' if l.status == 'pending' else '' }}">{{ {"live": "consistent", "wrong": "issues", "missing": "not found", "pending": "checking", "unavailable": "check failed"}[l.status] }}</span></td>
       <td class="hint">{% for f, v in l.fields_d.items() %}{% if v.status == "mismatch" %}<div><b>{{ f }}</b>: shows {{ v.found }}</div>{% elif v.status == "absent" %}<div><b>{{ f }}</b>: missing</div>{% elif f == "error" %}<div>{{ v.found }}</div>{% endif %}{% endfor %}</td>
-      <td>{% if l.listing_url %}<a href="{{ l.listing_url }}" target="_blank" rel="noopener">view</a>{% endif %}</td>
+      <td>{% if l.listing_url %}<a href="{{ l.listing_url | safe_url }}" target="_blank" rel="noopener">view</a>{% endif %}</td>
       {% if editable %}<td>
         <details><summary class="btn-sm">Edit</summary>
           <form method="post" action="/citations/listings/{{ l.id }}" style="min-width:260px;margin-top:6px">

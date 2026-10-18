@@ -38,8 +38,8 @@
       {% for q in ["nw","ne","sw","se"] %}<td class="num">{{ c.quadrants[q] if c.quadrants[q] is not none else "—" }}</td>{% endfor %}
       <td class="num">{{ b.rating or "—" }}</td><td class="num">{{ b.review_count if b.review_count is not none else "—" }}</td>
       <td class="num">{{ b.photos_count if b.photos_count is not none else "—" }}</td>
-      <td>{% if b.website %}<a href="{{ b.website }}" target="_blank" rel="noopener">site</a>{% endif %}
-          {% if b.maps_url %}<a href="{{ b.maps_url }}" target="_blank" rel="noopener">map</a>{% endif %}</td>
+      <td>{% if b.website %}<a href="{{ b.website | safe_url }}" target="_blank" rel="noopener">site</a>{% endif %}
+          {% if b.maps_url %}<a href="{{ b.maps_url | safe_url }}" target="_blank" rel="noopener">map</a>{% endif %}</td>
     </tr>
     {% endfor %}
   </table></div>

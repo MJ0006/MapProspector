@@ -76,7 +76,10 @@ def text_search(query: str, lat: float | None = None, lng: float | None = None,
     http = client or httpx.Client(timeout=30)
     try:
         while len(out) < max_results:
-            r = http.post(f"{BASE}/places:searchText", json=body, headers=_headers(fields or FIELDS))
+            try:
+                r = http.post(f"{BASE}/places:searchText", json=body, headers=_headers(fields or FIELDS))
+            except httpx.HTTPError as exc:
+                raise PlacesError(f"Could not reach Google Places: {exc}") from exc
             if r.status_code != 200:
                 raise PlacesError(f"Places search failed ({r.status_code}): {r.text[:300]}")
             data = r.json()
@@ -95,6 +98,8 @@ def details(google_place_id: str, client: httpx.Client | None = None) -> dict:
     http = client or httpx.Client(timeout=30)
     try:
         r = http.get(f"{BASE}/places/{google_place_id}", headers=_headers(FIELDS, prefix=""))
+    except httpx.HTTPError as exc:
+        raise PlacesError(f"Could not reach Google Places: {exc}") from exc
     finally:
         if client is None:
             http.close()

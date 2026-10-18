@@ -121,10 +121,12 @@ def test_ask_with_app_data_uses_read_only_mcp(fakes, monkeypatch):
     assert gem["args"][gem["args"].index("--allowed-mcp-server-names") + 1] == "mapprospector"
     cfg = json.loads((Path(gem["cwd"]) / ".gemini" / "settings.json").read_text(encoding="utf-8"))
     srv = cfg["mcpServers"]["mapprospector"]
-    assert srv["includeTools"] == READ_ONLY and srv["env"] == {"MAPPROSPECTOR_MCP_READONLY": "1"}
+    assert srv["includeTools"] == READ_ONLY and srv["env"]["MAPPROSPECTOR_MCP_READONLY"] == "1"
+    assert srv["env"]["DATA_DIR"] == str(settings.DATA_DIR)  # the server reads your database, not an empty one
     assert srv["command"] == sys.executable and srv["cwd"] == str(settings.ROOT)
     codex = [c for c in fakes() if c["name"] == "codex"][0]["args"]
-    assert 'mcp_servers.mapprospector.env={MAPPROSPECTOR_MCP_READONLY="1"}' in codex
+    env_arg = next(a for a in codex if a.startswith("mcp_servers.mapprospector.env="))
+    assert 'MAPPROSPECTOR_MCP_READONLY="1"' in env_arg and f"DATA_DIR={json.dumps(str(settings.DATA_DIR))}" in env_arg
 
 
 def test_mcp_server_read_only_mode_hides_write_tools():

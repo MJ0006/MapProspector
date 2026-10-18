@@ -23,7 +23,9 @@ class PlatformError(AIUnavailable):
 
 
 LIMIT_RE = re.compile(r"usage limit|rate[ _-]?limit|quota|resource_exhausted|too many requests|\b429\b|limit reached|"
-                      r"spend cap|out of credits|credit limit|overloaded", re.I)
+                      r"spend cap|out of credits|credit limit", re.I)
+# Busy for a moment (Claude's "529 overloaded", 503s): fall back now, but don't pause the platform for an hour.
+BUSY_RE = re.compile(r"overloaded|\b529\b|\b503\b|temporarily unavailable|server is busy", re.I)
 # Said in a successful-looking reply: only these exact phrasings count, so a draft about "limits" isn't misread.
 STRONG_LIMIT_RE = re.compile(r"usage limit reached|hit your usage limit|reached your usage limit|limit reached\|\d{10}|"
                              r"resource_exhausted|quota exceeded", re.I)
@@ -32,6 +34,8 @@ AUTH_RE = re.compile(r"not logged in|please (run )?/?log ?in|login required|sign
 
 
 def classify(text: str) -> str:
+    if BUSY_RE.search(text or ""):
+        return "error"
     if LIMIT_RE.search(text or ""):
         return "limit"
     if AUTH_RE.search(text or ""):
@@ -46,7 +50,8 @@ def retry_time(text: str, now: datetime | None = None) -> datetime | None:
     m = re.search(r"\|(\d{10})\b", text)
     if m:
         return datetime.fromtimestamp(int(m.group(1)), timezone.utc)
-    m = re.search(r"\bin ((?:\d+\s*(?:days?|d|hours?|hrs?|h|minutes?|mins?|m|seconds?|secs?|s)[\s,and]*)+)", text, re.I)
+    unit = r"(?:days?|d|hours?|hrs?|h|minutes?|mins?|m|seconds?|secs?|s)\b"
+    m = re.search(rf"\bin ((?:\d+\s*{unit}(?:\s*,?\s*(?:and\s+)?)?)+)", text, re.I)
     if m:
         total = timedelta()
         for n, unit in re.findall(r"(\d+)\s*([a-z]+)", m.group(1).lower()):
@@ -55,6 +60,21 @@ def retry_time(text: str, now: datetime | None = None) -> datetime | None:
                       "s": timedelta(seconds=n)}[unit[0]]
         if total:
             return now + total
+    months = "jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec"
+    m = re.search(rf"\b(?:resets?|try again|available)\b\D{{0,12}}\b({months})[a-z]*\.?\s+(\d{{1,2}})(?:st|nd|rd|th)?,?"
+                  rf"\s*(?:at\s+)?(\d{{1,2}})(?::(\d{{2}}))?\s*([ap])\.?m\b", text, re.I)
+    if m:  # "resets Oct 20 at 3pm" (weekly limits)
+        local = now.astimezone()
+        hour = int(m.group(3)) % 12 + (12 if m.group(5).lower() == "p" else 0)
+        try:
+            at = local.replace(month=months.split("|").index(m.group(1).lower()[:3]) + 1, day=int(m.group(2)),
+                               hour=hour, minute=int(m.group(4) or 0), second=0, microsecond=0)
+        except ValueError:
+            at = None
+        if at:
+            if at <= local:
+                at = at.replace(year=at.year + 1)
+            return at.astimezone(timezone.utc)
     m = re.search(r"\b(?:resets?|try again|available)\b[^0-9]{0,12}(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\b", text, re.I)
     if m:
         hour = int(m.group(1)) % 12 + (12 if m.group(3).lower() == "p" else 0)

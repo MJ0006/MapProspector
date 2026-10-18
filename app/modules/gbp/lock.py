@@ -3,7 +3,7 @@ and flag any field Google or a user suggestion changed. In connected mode you ca
 through the Business Profile API; otherwise the app tells you exactly what to fix."""
 from datetime import datetime, timedelta, timezone
 
-from app import db, jobs, places_store, settings
+from app import db, jobs, journal, places_store, settings
 from app.providers import gbp_api, places
 
 FIELDS = {"name": "Business name", "phone": "Phone number", "website": "Website", "address": "Address",
@@ -88,5 +88,6 @@ def poll() -> None:
                      "AND s.approved = 1)", cutoff):
         try:
             check(co["id"])
-        except Exception:
+        except Exception as exc:  # e.g. Places key expired: shows in the Journal instead of silently not monitoring
             db.update("companies", co["id"], lock_checked_at=db.now())
+            journal.failure("lock", "check", exc, company_id=co["id"])

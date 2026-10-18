@@ -35,7 +35,10 @@ def oauth_start():
 def oauth_callback(code: str = "", state: str = "", error: str = ""):
     if error or not code or state != db.get_setting("oauth_state"):
         raise HTTPException(400, f"Google sign-in was not completed. {error}")
-    gbp_api.exchange(code)
+    try:
+        gbp_api.exchange(code)
+    except gbp_api.GBPError as exc:
+        raise HTTPException(502, str(exc))
     return redirect("/settings?saved=1")
 
 
@@ -78,6 +81,7 @@ def posts_draft(company_id: int, topic: str = Form(...), tone: str = Form(""), l
 
 @router.post("/clients/{company_id}/posts/manual")
 def posts_manual(company_id: int, body: str = Form(...)):
+    company_or_404(company_id)
     db.insert("gbp_posts", company_id=company_id, topic="manual", body=body, status="draft", created_at=db.now())
     return redirect(f"/clients/{company_id}/posts")
 
@@ -100,7 +104,10 @@ def post_action(post_id: int, action: str, body: str = Form(None), cta: str = Fo
     elif action == "schedule":
         if not scheduled_at:
             raise HTTPException(400, "Pick a date and time")
-        when = datetime.fromisoformat(scheduled_at).astimezone(timezone.utc)
+        try:
+            when = datetime.fromisoformat(scheduled_at).astimezone(timezone.utc)
+        except ValueError:
+            raise HTTPException(400, "Pick a valid date and time for the post.")
         db.update("gbp_posts", post_id, status="scheduled", scheduled_at=when.isoformat(timespec="seconds"))
     elif action == "publish":
         db.update("gbp_posts", post_id, status="approved")
@@ -211,18 +218,20 @@ def review_landing(request: Request, token: str):
 @router.get("/r/{token}/go")
 def review_go(token: str):
     rr = db.one("SELECT * FROM review_requests WHERE token = ?", token)
-    if not rr:
+    if not rr or rr["status"] == "stopped":
         raise HTTPException(404)
+    co = db.one("SELECT review_link FROM companies WHERE id = ?", rr["company_id"])
+    if not co or not (co["review_link"] or "").startswith("https://"):
+        raise HTTPException(404, "This review link isn't set up yet. Please contact the business directly.")
     db.run("UPDATE review_requests SET clicked_at = COALESCE(clicked_at, ?), status = 'clicked' WHERE id = ?",
            db.now(), rr["id"])
-    co = db.one("SELECT review_link FROM companies WHERE id = ?", rr["company_id"])
     return RedirectResponse(co["review_link"], status_code=302)
 
 
 @router.post("/r/{token}/feedback")
 def review_feedback(token: str, message: str = Form(...)):
     rr = db.one("SELECT * FROM review_requests WHERE token = ?", token)
-    if not rr:
+    if not rr or rr["status"] == "stopped":
         raise HTTPException(404)
     db.insert("feedback", company_id=rr["company_id"], request_id=rr["id"], message=message[:3000], created_at=db.now())
     return redirect(f"/r/{token}?sent=1")
@@ -243,17 +252,24 @@ async def photos_upload(company_id: int, files: list[UploadFile] = File(...), ca
                         category: str = Form("ADDITIONAL"), stamp_gps: str = Form(""), lat: str = Form(""),
                         lng: str = Form("")):
     co = company_or_404(company_id)
+    gps = None
+    if stamp_gps and (lat.strip() or lng.strip()):
+        try:
+            gps = (float(lat), float(lng))
+        except ValueError:
+            gps = None
+        if not gps or not (-90 <= gps[0] <= 90 and -180 <= gps[1] <= 180):
+            raise HTTPException(400, "Latitude and longitude must be numbers like 39.7392 and -104.9903.")
     folder = photos.photo_dir(company_id)
-    n0 = db.one("SELECT COUNT(*) n FROM photos WHERE company_id = ?", company_id)["n"]
-    for i, f in enumerate(files):
+    for f in files:
         if Path(f.filename or "").suffix.lower() not in photos.ALLOWED:
             continue
-        name = photos.descriptive_name(co["name"], caption, f.filename, n0 + i + 1)
+        name = photos.unique_name(folder, co["name"], caption, f.filename)
         path = folder / name
         path.write_bytes(await read_limited(f, "photo"))
         glat = glng = None
-        if stamp_gps and lat and lng and photos.stamp_gps(path, float(lat), float(lng)):
-            glat, glng = float(lat), float(lng)
+        if gps and photos.stamp_gps(path, *gps):
+            glat, glng = gps
         db.insert("photos", company_id=company_id, filename=name, original_name=f.filename, caption=caption,
                   category=category if category in photos.CATEGORIES else "ADDITIONAL", gps_lat=glat, gps_lng=glng,
                   status="library", created_at=db.now())
@@ -263,9 +279,13 @@ async def photos_upload(company_id: int, files: list[UploadFile] = File(...), ca
 @router.post("/clients/{company_id}/photos/schedule")
 async def photos_schedule(request: Request, company_id: int):
     form = await request.form()
-    ids = [int(x) for x in form.getlist("photo_id")]
-    start = datetime.fromisoformat(form.get("start") or datetime.now().isoformat(timespec="minutes")).astimezone(timezone.utc)
-    photos.schedule_drip(company_id, ids, start, max(0, int(form.get("every_days") or 0)))
+    try:
+        ids = [int(x) for x in form.getlist("photo_id")]
+        start = datetime.fromisoformat(form.get("start") or datetime.now().isoformat(timespec="minutes")).astimezone(timezone.utc)
+        every = max(0, min(365, int(form.get("every_days") or 0)))
+    except ValueError:
+        raise HTTPException(400, "Pick a valid start date/time and a whole number of days.")
+    photos.schedule_drip(company_id, ids, start, every)
     return redirect(f"/clients/{company_id}/photos")
 
 
@@ -365,6 +385,7 @@ def perf_summary(series: dict, start: date, end: date) -> dict:
 
 @router.get("/clients/{company_id}/insights")
 def insights_page(request: Request, company_id: int, days: int = 28):
+    days = max(1, min(days, 540))  # Google keeps about 18 months of performance data
     co = company_or_404(company_id)
     end = date.today() - timedelta(days=3)  # Google data lags a few days
     start = end - timedelta(days=days - 1)

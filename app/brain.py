@@ -50,9 +50,14 @@ def _run(script: str, *args: str) -> str:
     env = None
     if os.name == "nt":  # the brain is written for macOS/Linux; app/winshim fills the gaps on Windows
         env = {**os.environ, "PYTHONPATH": os.pathsep.join(filter(None, [str(WINSHIM), os.environ.get("PYTHONPATH")]))}
-    proc = subprocess.run([sys.executable, str(settings.BRAIN_DIR / "scripts" / script), *args],
-                          capture_output=True, text=True, encoding="utf-8", errors="replace",
-                          cwd=settings.BRAIN_DIR, timeout=300, env=env, stdin=subprocess.DEVNULL)
+    try:
+        proc = subprocess.run([sys.executable, str(settings.BRAIN_DIR / "scripts" / script), *args],
+                              capture_output=True, text=True, encoding="utf-8", errors="replace",
+                              cwd=settings.BRAIN_DIR, timeout=300, env=env, stdin=subprocess.DEVNULL)
+    except subprocess.TimeoutExpired:
+        raise BrainError(f"{script} did not finish within 5 minutes")
+    except OSError as exc:  # e.g. vendor/local-seo-brain missing (clone without --recurse-submodules)
+        raise BrainError(f"could not run {script}: {exc}")
     if proc.returncode != 0:
         raise BrainError((proc.stderr or proc.stdout).strip()[-800:])
     return proc.stdout.strip()
@@ -133,6 +138,8 @@ def _sections(body: str) -> dict[str, str]:
 
 def prompt_note(name: str) -> dict:
     """Parse wiki/prompts/<name>.md into its task, inputs and acceptance criteria."""
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", name or ""):
+        raise BrainError(f"Unknown prompt: {name}")
     path = WIKI / "prompts" / f"{name}.md"
     if not path.exists():
         raise BrainError(f"Brain prompt not found: {name}")

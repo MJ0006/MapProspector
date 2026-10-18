@@ -8,7 +8,10 @@
     <h2>Your questionnaires</h2>
     {% for q in rows %}
     <p><b>{{ q.name }}</b> · {{ (q.questions | loads([])) | length }} questions · {{ q.n }} responses<br>
-      <span class="hint">Link: <a href="/q/{{ q.token }}" target="_blank">{{ base }}/q/{{ q.token }}</a> (add <code>?co=CLIENT_ID</code> to tie answers to a client)</span></p>
+      <span class="hint">Link: <a href="/q/{{ q.token }}" target="_blank">{{ base }}/q/{{ q.token }}</a></span></p>
+    {% if clients %}<details><summary class="hint">Links that add answers to a client's vault</summary>
+      {% for co in clients %}<p class="hint">{{ co.name }}: <a href="{{ link(q.token, company_id=co.id) }}" target="_blank">{{ base }}{{ link(q.token, company_id=co.id) }}</a></p>{% endfor %}
+    </details>{% endif %}
     {% else %}<div class="empty">None yet.</div>{% endfor %}
     {% if responses %}
     <h3 style="margin-top:14px">Recent responses</h3>

@@ -96,7 +96,8 @@ def queue_drafts(review_ids: list[int]) -> None:
 def _draft_safely(review_id: int, previous_status: str) -> None:
     try:
         draft_reply(review_id)
-    except Exception:
+    except Exception as exc:
+        journal.failure("reviews", "draft_reply", exc, subject_type="review", subject_id=review_id)
         db.update("reviews", review_id, reply_status=previous_status if previous_status != "drafting" else "none")
 
 

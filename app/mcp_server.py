@@ -84,8 +84,10 @@ def start_scan(place_id: int, keyword: str, provider: str = "demo", surface: str
     from app.modules.rank import engine, grid
     if provider not in engine.available_providers():
         raise ValueError(f"Provider {provider} is not configured. Available: {list(engine.available_providers())}")
+    from app import jobs
+    # While the app is running, it runs the scan (only one process runs scans); otherwise it runs here.
     ids = engine.create_scans(int(place_id), [keyword], surface=surface, provider=provider, size=int(grid_size),
-                              spacing_m=float(spacing_miles) * grid.MILE_M, shape=shape)
+                              spacing_m=float(spacing_miles) * grid.MILE_M, shape=shape, run_now=not jobs.app_running())
     return get_scan(ids[0])
 
 

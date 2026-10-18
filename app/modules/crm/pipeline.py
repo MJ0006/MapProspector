@@ -3,7 +3,7 @@ from fastapi import APIRouter, Form, HTTPException, Request
 
 from app import db
 from app.modules.crm import automations
-from app.web import redirect, render, safe_back
+from app.web import redirect, render, safe_back, row_or_404
 
 router = APIRouter()
 
@@ -41,7 +41,7 @@ def create_deal(contact_id: int, title: str, pipeline_id: int | None = None, sta
 
 
 def move_deal(deal_id: int, stage_id: int) -> None:
-    deal = db.one("SELECT * FROM deals WHERE id = ?", deal_id)
+    deal = row_or_404("deals", deal_id)
     stage = db.one("SELECT * FROM pipeline_stages WHERE id = ? AND pipeline_id = ?", stage_id, deal["pipeline_id"])
     if not stage:
         raise HTTPException(400, "Stage is not in this pipeline")
@@ -72,7 +72,7 @@ def board(request: Request, pipeline_id: int | None = None):
 @router.post("/crm/deals")
 def deal_new(contact_id: int = Form(...), title: str = Form(""), value: str = Form(""),
              pipeline_id: str = Form(""), back: str = Form("/crm/pipeline")):
-    c = db.one("SELECT * FROM contacts WHERE id = ?", contact_id)
+    c = row_or_404("contacts", contact_id)
     create_deal(contact_id, title or (c["business_name"] or "Deal"), int(pipeline_id) if pipeline_id else None,
                 value=float(value) if value else None)
     return redirect(safe_back(back, "/crm/pipeline"))
@@ -97,6 +97,6 @@ def pipeline_new(name: str = Form(...), stages: str = Form("")):
 
 @router.post("/crm/stages/{stage_id}")
 def stage_update(stage_id: int, name: str = Form(...), win_pct: int = Form(0)):
-    s = db.one("SELECT * FROM pipeline_stages WHERE id = ?", stage_id)
+    s = row_or_404("pipeline_stages", stage_id)
     db.update("pipeline_stages", stage_id, name=name, win_pct=max(0, min(100, win_pct)))
     return redirect(f"/crm/pipeline?pipeline_id={s['pipeline_id']}")

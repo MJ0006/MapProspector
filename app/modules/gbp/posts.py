@@ -74,11 +74,22 @@ def publish(post_id: int) -> str:
 def publish_scheduled() -> None:
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     for p in db.all("SELECT id FROM gbp_posts WHERE status = 'scheduled' AND scheduled_at <= ?", now):
+        # Take the row first: a post is tried once, never re-posted every minute after a timeout.
+        if not db.claim("gbp_posts", p["id"], ("scheduled",), "publishing"):
+            continue
         try:
             if publish(p["id"]) == "manual":
                 db.update("gbp_posts", p["id"], status="approved", error="Due now: post it in Google (not connected).")
-        except gbp_api.GBPError:
-            pass
+        except Exception as exc:
+            db.update("gbp_posts", p["id"], status="failed",
+                      error=f"{str(exc)[:240]} (check Google before retrying: it may have posted)")
+            journal.failure("posts", "publish_scheduled", exc, subject_type="post", subject_id=p["id"])
+
+
+@jobs.on_startup
+def recover_publishing() -> None:
+    db.run("UPDATE gbp_posts SET status = 'failed', error = 'Publishing was interrupted (app closed). Check Google, then retry.' "
+           "WHERE status = 'publishing'")
 
 
 @jobs.on_startup

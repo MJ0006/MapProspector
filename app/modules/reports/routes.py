@@ -7,7 +7,7 @@ from app import db
 from app.modules.clients.routes import company_or_404
 from app.modules.reports import builder
 from app.providers import gbp_api
-from app.web import redirect, render
+from app.web import redirect, render, row_or_404
 
 router = APIRouter()
 
@@ -54,7 +54,7 @@ def report_build(report_id: int, note: str = Form("")):
 
 @router.post("/reports/{report_id}/delete")
 def report_delete(report_id: int):
-    rep = db.one("SELECT * FROM reports WHERE id = ?", report_id)
+    rep = row_or_404("reports", report_id)
     db.run("DELETE FROM reports WHERE id = ?", report_id)
     return redirect(f"/clients/{rep['company_id']}/reports")
 
@@ -82,8 +82,7 @@ def run_html(run_id: int, download: int = 0):
 @router.post("/reports/runs/{run_id}/approve")
 def run_approve(run_id: int):
     run = _run(run_id)
-    db.update("report_runs", run_id, status="approved")
-    if run["recipients"]:
+    if db.claim("report_runs", run_id, ("pending_approval",), "approved") and run["recipients"]:
         builder.send_run(run_id)
     return redirect(f"/reports/runs/{run_id}")
 

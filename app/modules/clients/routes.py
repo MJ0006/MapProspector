@@ -137,8 +137,13 @@ def client_delete(company_id: int):
 @router.post("/clients/{company_id}/synthesize")
 def client_synthesize(company_id: int):
     co = company_or_404(company_id)
-    brain.synthesize(co["vault_slug"])
-    brain.render_report(co["vault_slug"])
+    try:
+        brain.synthesize(co["vault_slug"])
+        brain.render_report(co["vault_slug"])
+    except brain.BrainError as exc:
+        from app import journal
+        journal.failure("clients", "update_plan", exc, company_id=company_id)
+        raise HTTPException(502, f"Local SEO Brain could not update the plan: {exc}")
     return redirect(f"/clients/{company_id}")
 
 

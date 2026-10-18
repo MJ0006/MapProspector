@@ -89,6 +89,8 @@ def render_vars(text: str, contact: dict, ctx: dict) -> str:
 
 
 MAX_DEPTH = 3  # automations triggering automations (e.g. move_deal -> deal_stage) stop after this
+# Depth of the automation chain on this thread. A run keeps its own depth in its context ("_depth"), because
+# runs advance on background threads (and after waits) where this thread-local starts at 0.
 _depth = threading.local()
 
 
@@ -120,9 +122,10 @@ def fire(trigger: str, contact_id: int, **context) -> list[int]:
 
 
 def start(automation_id: int, contact_id: int, context: dict | None = None) -> int:
+    context = {**(context or {}), "_depth": getattr(_depth, "n", 0)}
     run_id = db.insert("automation_runs", automation_id=automation_id, contact_id=contact_id, step=0,
-                       status="running", context=context or {}, log=[], created_at=db.now(), updated_at=db.now())
-    jobs.submit(advance, run_id)
+                       status="running", context=context, log=[], created_at=db.now(), updated_at=db.now())
+    jobs.submit(_advance_safely, run_id)
     return run_id
 
 
@@ -137,11 +140,23 @@ def advance(run_id: int) -> None:
     run = db.one("SELECT * FROM automation_runs WHERE id = ?", run_id)
     if not run or run["status"] not in ("running", "waiting"):
         return
+    ctx = db.loads(run["context"], {}) or {}
+    prev = getattr(_depth, "n", 0)
+    _depth.n = max(prev, int(ctx.get("_depth", 0)))
+    try:
+        _advance(run, ctx)
+    finally:
+        _depth.n = prev
+
+
+def _advance(run: dict, ctx: dict) -> None:
+    run_id = run["id"]
     auto = db.one("SELECT * FROM automations WHERE id = ?", run["automation_id"])
     actions = db.loads(auto["actions"], []) if auto else []
-    ctx = db.loads(run["context"], {}) or {}
     step = run["step"]
     while step < len(actions):
+        if db.one("SELECT status FROM automation_runs WHERE id = ?", run_id)["status"] not in ("running", "waiting"):
+            return  # stopped from the contact page while this run was going
         contact = _contact(run["contact_id"])
         if not contact:
             break
@@ -219,7 +234,8 @@ def execute(action: dict, contact: dict, ctx: dict) -> dict:
         q = db.one("SELECT * FROM questionnaires WHERE id = ?", int(action["questionnaire_id"]))
         if not q or not contact.get("email"):
             return {"note": "skipped"}
-        ctx["questionnaire_link"] = f"{settings.PUBLIC_BASE_URL}/q/{q['token']}?c={contact['id']}"
+        from app.modules.crm.questionnaires import link
+        ctx["questionnaire_link"] = settings.PUBLIC_BASE_URL + link(q["token"], contact_id=contact["id"])
         body = action.get("body") or "Hi {{first_name}},\n\nPlease fill in this short questionnaire: {{questionnaire_link}}"
         mailer.queue("email", contact["id"], contact["email"], action.get("subject") or q["name"],
                      render_vars(body, contact, ctx), origin="automation", approved=True)
@@ -258,5 +274,20 @@ def set_field(contact_id: int, field: str, value, *, fire_trigger: bool = True) 
 def resume_waiting() -> None:
     now = _now().isoformat(timespec="seconds")
     for r in db.all("SELECT id FROM automation_runs WHERE status = 'waiting' AND resume_at <= ?", now):
-        db.update("automation_runs", r["id"], status="running")
-        advance(r["id"])
+        if db.claim("automation_runs", r["id"], ("waiting",), "running"):
+            _advance_safely(r["id"])
+
+
+def _advance_safely(run_id: int) -> None:
+    try:
+        advance(run_id)
+    except Exception as exc:  # never leave a run stuck in 'running'
+        journal.failure("automation", "advance", exc, subject_type="automation_run", subject_id=run_id)
+        db.update("automation_runs", run_id, status="failed", updated_at=db.now())
+
+
+@jobs.on_startup
+def resume_interrupted() -> None:
+    """Runs that were going when the app closed continue from their current step."""
+    for r in db.all("SELECT id FROM automation_runs WHERE status = 'running'"):
+        jobs.submit(_advance_safely, r["id"])

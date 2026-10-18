@@ -68,6 +68,8 @@ def send(outbox_id: int) -> None:
         return
     if not settings.enabled("smtp"):
         return  # stays approved until SMTP is configured
+    if not db.claim("outbox", outbox_id, ("approved",), "sending"):
+        return  # the approve click and the background sender raced; only one sends
     msg = EmailMessage()
     msg["From"] = settings.env("SMTP_FROM") or settings.env("SMTP_USER")
     msg["To"] = m["to_addr"]
@@ -88,6 +90,14 @@ def send(outbox_id: int) -> None:
     if m["contact_id"]:
         db.insert("activities", contact_id=m["contact_id"], type="email",
                   body=f"Sent: {m['subject']}", created_at=db.now())
+
+
+@jobs.on_startup
+def interrupted_sends() -> None:
+    """A send cut off by closing the app may or may not have gone out: flag it instead of sending twice."""
+    for m in db.all("SELECT id FROM outbox WHERE status = 'sending'"):
+        db.update("outbox", m["id"], status="failed",
+                  error="Interrupted while sending (app closed). Check your Sent folder before retrying.")
 
 
 @jobs.on_tick
