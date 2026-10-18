@@ -5,6 +5,7 @@ Two jobs:
 2. Turn the brain's prompt notes and doctrine into prompts for `claude -p`, always
    carrying the brain's refusal rules so drafts stay inside Google's policies.
 """
+import os
 import re
 import subprocess
 import sys
@@ -15,6 +16,7 @@ from app import settings
 
 WIKI = settings.BRAIN_DIR / "assets" / "template-brain" / "wiki"
 CANON = settings.BRAIN_DIR / "references" / "canon"
+WINSHIM = Path(__file__).with_name("winshim")
 
 # Condensed from vendor/local-seo-brain/docs/PRODUCT_BOUNDARIES.md (Refusals) and README.
 GUARDRAILS = """Rules (from Local SEO Brain, follow strictly):
@@ -45,8 +47,12 @@ def _today() -> str:
 
 
 def _run(script: str, *args: str) -> str:
+    env = None
+    if os.name == "nt":  # the brain is written for macOS/Linux; app/winshim fills the gaps on Windows
+        env = {**os.environ, "PYTHONPATH": os.pathsep.join(filter(None, [str(WINSHIM), os.environ.get("PYTHONPATH")]))}
     proc = subprocess.run([sys.executable, str(settings.BRAIN_DIR / "scripts" / script), *args],
-                          capture_output=True, text=True, cwd=settings.BRAIN_DIR, timeout=300)
+                          capture_output=True, text=True, encoding="utf-8", errors="replace",
+                          cwd=settings.BRAIN_DIR, timeout=300, env=env)
     if proc.returncode != 0:
         raise BrainError((proc.stderr or proc.stdout).strip()[-800:])
     return proc.stdout.strip()

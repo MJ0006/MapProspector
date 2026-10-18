@@ -56,7 +56,7 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
       - name: Tests (with the bundled Python)
-        run: desktop\build\python\python.exe -m pytest -q -p no:cacheprovider
+        run: desktop\build\python\python.exe -m pytest tests -q -p no:cacheprovider
 
       - name: Stage server files
         run: |
