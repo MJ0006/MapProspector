@@ -16,7 +16,8 @@ _db_path: Path | None = None
 COLUMNS = [
     ("companies", "gbp_location", "TEXT"), ("companies", "gsc_site", "TEXT"), ("companies", "lock_checked_at", "TEXT"),
     ("audits", "share_token", "TEXT"), ("citation_audits", "share_token", "TEXT"),
-    ("scan_schedules", "last_error", "TEXT"), ("reports", "last_error", "TEXT"),
+    ("scan_schedules", "last_error", "TEXT"), ("reports", "last_error", "TEXT"), ("tasks", "done_at", "TEXT"),
+    ("photos", "error", "TEXT"),
 ]
 UNIQUE_INDEXES = [("audits", "share_token"), ("citation_audits", "share_token")]
 

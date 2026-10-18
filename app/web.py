@@ -38,6 +38,12 @@ def _safe_url(value) -> str:
 
 templates.env.filters["safe_url"] = _safe_url
 
+
+def csv_cell(value) -> str:
+    """Spreadsheet-safe CSV cell: text starting with = + - @ (e.g. from AI web lookups) would run as a formula."""
+    v = "" if value is None else str(value)
+    return "'" + v if v[:1] in ("=", "+", "-", "@", "\t", "\r") else v
+
 NAV = [
     ("Prospecting", [
         ("/", "Dashboard"),
@@ -84,6 +90,7 @@ def render(request: Request, name: str, **ctx):
         ctx["modules"] = {**settings.modules(), "ai": ai.available(), "ai_web": ai.available(web=True),
                           "ai_mcp": ai.available(mcp=True)}
     ctx.setdefault("brand", brand())
+    ctx.setdefault("app_password", bool(settings.env("APP_PASSWORD")))
     ctx.setdefault("public_is_local", public_is_local())
     from app import notify
     ctx.setdefault("notices", notify.notices())

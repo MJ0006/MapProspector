@@ -14,7 +14,9 @@ def base_url() -> str:
     host = settings.env("OLLAMA_HOST", "127.0.0.1:11434").rstrip("/")
     url = httpx.URL(host if "://" in host else f"http://{host}")
     hostname = "127.0.0.1" if url.host in ("", "0.0.0.0", "::", "[::]") else url.host
-    return f"{url.scheme}://{hostname}:{url.port or 11434}"
+    if ":" in hostname:
+        hostname = f"[{hostname}]"  # IPv6
+    return f"{url.scheme}://{hostname}:{url.port or (443 if url.scheme == 'https' else 11434)}"
 
 
 def client(timeout: float) -> httpx.Client:  # tests swap this for a fake transport

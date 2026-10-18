@@ -8,7 +8,8 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).resolve().parent.parent
 # The desktop app keeps its .env next to the data, in the user's app-data folder.
 ENV_FILE = Path(os.environ.get("MAPPROSPECTOR_ENV_FILE") or ROOT / ".env")
-load_dotenv(ENV_FILE)
+SYSTEM_ENV = frozenset(os.environ)  # set outside .env (e.g. Windows environment variables); these win over .env
+load_dotenv(ENV_FILE, interpolate=False)  # keys are taken literally: a '$' in a password stays a '$'
 
 
 def env(name: str, default: str = "") -> str:

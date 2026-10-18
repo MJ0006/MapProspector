@@ -110,9 +110,12 @@ def post_action(post_id: int, action: str, body: str = Form(None), cta: str = Fo
             raise HTTPException(400, "Pick a valid date and time for the post.")
         db.update("gbp_posts", post_id, status="scheduled", scheduled_at=when.isoformat(timespec="seconds"))
     elif action == "publish":
-        db.update("gbp_posts", post_id, status="approved")
+        # Take the post first, so a click while the scheduler is publishing it can't post it twice.
+        if not db.claim("gbp_posts", post_id, ("draft", "approved", "scheduled", "failed"), "publishing"):
+            raise HTTPException(409, "This post is already being published or is published.")
         try:
-            posts.publish(post_id)
+            if posts.publish(post_id) == "manual":
+                db.update("gbp_posts", post_id, status="approved")
         except gbp_api.GBPError as exc:
             raise HTTPException(502, str(exc))
     elif action == "mark_published":
@@ -295,15 +298,21 @@ def photo_action(photo_id: int, action: str):
     if not p:
         raise HTTPException(404)
     if action == "publish":
+        # claim it, so a scheduled publish running at the same moment can't upload it twice
+        if not db.claim("photos", photo_id, ("library", "scheduled", "failed"), "publishing"):
+            raise HTTPException(409, "This photo is already being published.")
         try:
-            if photos.publish(photo_id) == "manual":
-                raise HTTPException(400, "Connect Google and link a location to publish; or upload it in Google yourself.")
+            result = photos.publish(photo_id)
         except gbp_api.GBPError as exc:
+            db.update("photos", photo_id, status="failed", error=str(exc)[:300])
             raise HTTPException(502, str(exc))
+        if result == "manual":
+            db.update("photos", photo_id, status=p["status"])
+            raise HTTPException(400, "Connect Google and link a location to publish; or upload it in Google yourself.")
     elif action == "mark_published":
-        db.update("photos", photo_id, status="published", published_at=db.now())
-    elif action == "unschedule":
-        db.update("photos", photo_id, status="library", scheduled_at=None)
+        db.update("photos", photo_id, status="published", published_at=db.now(), error=None)
+    elif action == "unschedule":  # also "back to library" for a failed photo
+        db.update("photos", photo_id, status="library", scheduled_at=None, error=None)
     elif action == "delete":
         (photos.photo_dir(p["company_id"]) / p["filename"]).unlink(missing_ok=True)
         db.run("DELETE FROM photos WHERE id = ?", photo_id)

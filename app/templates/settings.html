@@ -2,14 +2,17 @@
 {% macro key_field(f) %}
     <div class="field">
       <label for="k-{{ f.key }}"><code>{{ f.key }}</code>
-        {% if f.set %}<span class="badge good">set</span>{% endif %}{% if f.restart %} <span class="hint">(applies after a restart)</span>{% endif %}</label>
+        {% if f.set %}<span class="badge good">set</span>{% endif %}{% if f.restart %} <span class="hint">(applies after a restart)</span>{% endif %}
+        {% if f.system %} <span class="hint">(set in Windows environment variables: edit it there)</span>{% endif %}</label>
       <div class="actions">
-        {% if f.secret %}
-        <input id="k-{{ f.key }}" type="password" name="{{ f.key }}" placeholder="{{ f.shown or 'not set' }}" style="flex:1;min-width:0">
+        {% if f.system %}
+        <input id="k-{{ f.key }}" type="text" value="{{ f.shown }}" disabled style="flex:1;min-width:0">
+        {% elif f.secret %}
+        <input id="k-{{ f.key }}" type="password" name="{{ f.key }}" placeholder="{{ f.shown or 'not set' }}" autocomplete="new-password" style="flex:1;min-width:0">
         {% else %}
         <input id="k-{{ f.key }}" type="text" name="{{ f.key }}" value="{{ f.shown }}" placeholder="not set" style="flex:1;min-width:0">
         {% endif %}
-        {% if f.set %}<label class="hint" style="white-space:nowrap"><input type="checkbox" name="clear_{{ f.key }}"> Clear</label>{% endif %}
+        {% if f.set and not f.system %}<label class="hint" style="white-space:nowrap"><input type="checkbox" name="clear_{{ f.key }}"> Clear</label>{% endif %}
       </div>
     </div>
 {% endmacro %}

@@ -4,8 +4,10 @@ Follows vendor/local-seo-brain wiki/audits/property-technical-audit.md: every fi
 control tested, what was observed, and the URL. No priority score; the count of failed checks
 is just a count.
 """
+import ipaddress
 import json
 import re
+import socket
 import time
 from html.parser import HTMLParser
 
@@ -14,11 +16,20 @@ import httpx
 from app import settings
 
 UA = "Mozilla/5.0 (compatible; MapProspector audit; +local)"
-LOCAL_TYPES = {"localbusiness", "organization", "plumber", "roofingcontractor", "dentist", "electrician",
+# schema.org LocalBusiness and its common subtypes ("Organization" alone isn't a local business).
+LOCAL_TYPES = {"localbusiness", "plumber", "hairsalon", "beautysalon", "nailsalon", "dayspa", "autorepair",
+               "autobodyshop", "autodealer", "hotel", "motel", "bakery", "cafeorcoffeeshop", "barorpub", "dentist",
+               "chiropractor", "optician", "pharmacy", "gym", "exercisegym", "healthclub", "petstore", "florist",
+               "homegoodsstore", "hardwarestore", "clothingstore", "realestateagent", "insuranceagency",
+               "accountingservice", "taxservice", "childcare", "drycleaningorlaundry", "emergencyservice",
+               "roofingcontractor", "electrician", "roofingcontractor", "dentist", "electrician",
                "hvacbusiness", "homeandconstructionbusiness", "professionalservice", "restaurant", "store",
                "medicalbusiness", "legalservice", "automotivebusiness", "healthandbeautybusiness",
                "lodgingbusiness", "foodestablishment", "financialservice", "generalcontractor", "locksmith",
                "movingcompany", "housepainter", "attorney", "physician", "veterinarycare"}
+
+
+BRAND_STOPWORDS = {"the", "a", "an", "and", "of", "co", "llc", "inc", "ltd", "corp", "company", "services", "service"}
 
 
 class PageParser(HTMLParser):
@@ -27,11 +38,15 @@ class PageParser(HTMLParser):
         self.title, self.meta, self.h1, self.jsonld = "", {}, [], []
         self.links, self.imgs, self.canonical, self.text = [], [], None, []
         self._in, self._buf = None, ""
+        self._svg = 0  # <title> inside an inline <svg> icon is not the page title
 
     def handle_starttag(self, tag, attrs):
         a = {k.lower(): (v or "") for k, v in attrs}
-        if tag == "title":
-            self._in, self._buf = "title", ""
+        if tag == "svg":
+            self._svg += 1
+        elif tag == "title":
+            if not self._svg and not self.title:
+                self._in, self._buf = "title", ""
         elif tag == "h1":
             self._in, self._buf = "h1", ""
         elif tag == "script" and a.get("type", "").lower() == "application/ld+json":
@@ -50,6 +65,8 @@ class PageParser(HTMLParser):
             self.imgs.append(a.get("alt", None) if "alt" in a else None)
 
     def handle_endtag(self, tag):
+        if tag == "svg" and self._svg:
+            self._svg -= 1
         if self._in == "title" and tag == "title":
             self.title = self._buf.strip()
         elif self._in == "h1" and tag == "h1":
@@ -77,8 +94,8 @@ def schema_types(blocks: list[str]) -> set[str]:
         if isinstance(node, dict):
             t = node.get("@type")
             for v in (t if isinstance(t, list) else [t]):
-                if isinstance(v, str):
-                    found.add(v.lower())
+                if isinstance(v, str):  # "Plumber" or "https://schema.org/Plumber"
+                    found.add(v.rstrip("/").rsplit("/", 1)[-1].lower())
             for v in node.values():
                 walk(v)
         elif isinstance(node, list):
@@ -138,9 +155,12 @@ def page_checks(url: str, html: str, final_url: str, status: int, elapsed: float
                       f'"{p.title}" ({tl} chars)' if tl else "No <title>.", "audits/property-ctr-audit"))
     name = (place.get("name") or "").split("(")[0].strip()
     if name:
-        first = re.sub(r"[^a-z0-9]", "", name.lower().split()[0]) if name.split() else ""
+        # The distinctive words ("Summit" in "The Summit Roofing Co"), not "the" or "co".
+        words = [w for w in re.findall(r"[a-z0-9]+", name.lower()) if w not in BRAND_STOPWORDS] or \
+            re.findall(r"[a-z0-9]+", name.lower())
+        title_words = set(re.findall(r"[a-z0-9]+", p.title.lower()))
         out.append(_check("title_brand", "Business name in title", g,
-                          "pass" if first and first in re.sub(r"[^a-z0-9]", "", p.title.lower()) else "warn",
+                          "pass" if words and words[0] in title_words else "warn",
                           f'Looked for "{name}" in the title.', "audits/property-ctr-audit"))
     md = p.meta.get("description", "")
     out.append(_check("meta_description", "Meta description", g,
@@ -181,8 +201,17 @@ def page_checks(url: str, html: str, final_url: str, status: int, elapsed: float
 
 
 def _city(address: str | None) -> str | None:
-    parts = [s.strip() for s in (address or "").split(",")]
-    return parts[-3] if len(parts) >= 3 else None
+    """The city: the part just before the state/postcode ("..., Austin, TX 78701, USA" and "..., London SW1A 2AA, UK")."""
+    parts = [s.strip() for s in (address or "").split(",") if s.strip()]
+    if parts and re.fullmatch(r"[A-Za-z .]{2,}", parts[-1]) and not re.search(r"\d", parts[-1]) and len(parts) >= 3:
+        parts = parts[:-1]  # trailing country
+    if len(parts) < 2:
+        return None
+    last = parts[-1]
+    m = re.match(r"([A-Za-z .'-]+?)\s+[A-Z0-9]{2,4}\s?[0-9][A-Z0-9]{1,3}$", last)  # "London SW1A 2AA"
+    if m and not re.match(r"[A-Z]{2}\s+\d{5}", last):
+        return m.group(1).strip()
+    return parts[-2]
 
 
 def pagespeed(url: str, client: httpx.Client) -> dict | None:
@@ -201,12 +230,33 @@ def pagespeed(url: str, client: httpx.Client) -> dict | None:
             "cls": (audits.get("cumulative-layout-shift") or {}).get("displayValue")}
 
 
+class PrivateAddress(httpx.RequestError):
+    pass
+
+
+def only_public(request: httpx.Request) -> None:
+    """Website audits fetch addresses taken from Google listings, which their owners control. Refuse this computer,
+    your network and cloud metadata addresses, including when a public site redirects there (checked on every hop)."""
+    host = request.url.host
+    if request.url.scheme not in ("http", "https") or not host:
+        raise PrivateAddress(f"not an http(s) address: {request.url}", request=request)
+    try:
+        infos = socket.getaddrinfo(host, request.url.port or (443 if request.url.scheme == "https" else 80))
+    except socket.gaierror as exc:
+        raise httpx.ConnectError(f"could not resolve {host}: {exc}", request=request)
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0].split("%")[0])
+        if not ip.is_global or ip.is_multicast:
+            raise PrivateAddress(f"{host} points to a private address ({ip}); not checked", request=request)
+
+
 def run(place: dict, client: httpx.Client | None = None) -> tuple[str | None, list[dict]]:
     checks = listing_checks(place)
     url = place.get("website")
     if not url:
         return None, checks
-    http = client or httpx.Client(timeout=20, follow_redirects=True, headers={"User-Agent": UA})
+    http = client or httpx.Client(timeout=20, follow_redirects=True, headers={"User-Agent": UA},
+                                  event_hooks={"request": [only_public]})
     try:
         t0 = time.monotonic()
         try:

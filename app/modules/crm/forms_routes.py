@@ -1,6 +1,8 @@
 """Lead-capture forms + spam filters (D4). Public form: /f/{token} (HTML page) and POST /f/{token}
 (also accepts posts from your own website form; see the embed snippet on the forms page)."""
+import re
 import secrets
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -91,8 +93,18 @@ def public_form(request: Request, token: str, sent: int = 0):
     return render(request, "crm/form_public.html", title=_form(token)["name"], f=_form(token), sent=sent)
 
 
+MAX_PER_IP_HOUR = 5  # more than this from one address in an hour is treated as spam (stops automations)
+EMAIL_RE = re.compile(r"[^@\s,;<>]+@[^@\s,;<>]+\.[^@\s,;<>]+")
+
+
 def ingest_submission(form: dict, data: dict, ip: str | None, country: str | None) -> dict:
+    # One address only: "a@x.com, b@y.com" must not make automations email strangers.
+    m = EMAIL_RE.search(data.get("email") or "")
+    data["email"] = m.group(0) if m else ""
     is_spam, reason = spam.check(data, ip, country)
+    if not is_spam and ip and db.one("SELECT COUNT(*) n FROM form_submissions WHERE ip = ? AND created_at >= ?", ip,
+                                     (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(timespec="seconds"))["n"] >= MAX_PER_IP_HOUR:
+        is_spam, reason = True, f"more than {MAX_PER_IP_HOUR} submissions from this address in an hour"
     name = (data.get("name") or "").strip()
     first, _, last = name.partition(" ")
     custom = {k: v for k, v in data.items() if k not in ("name", "email", "phone", "message", "website")}

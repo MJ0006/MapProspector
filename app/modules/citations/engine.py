@@ -47,11 +47,25 @@ def profile(company_id: int) -> dict:
                         (place or {}).get("primary_category"))
 
 
+COUNTRIES = {"usa", "us", "united states", "united states of america", "canada", "uk", "united kingdom", "australia"}
+
+
 def profile_from(name, address, phone, website, hours=None, category=None) -> dict:
-    parts = [p.strip() for p in (address or "").split(",")]
-    street = parts[0] if parts else ""
-    city = parts[1] if len(parts) > 2 else ""
-    state_zip = parts[2] if len(parts) > 2 else ""
+    # "123 Main St, Suite 4, Springfield, IL 62701, USA" and service-area "Springfield, IL, USA" both parse:
+    # drop the country, then the last part is state + zip, the one before it the city, the rest the street.
+    parts = [p.strip() for p in (address or "").split(",") if p.strip()]
+    if parts and parts[-1].lower().strip(".") in COUNTRIES:
+        parts = parts[:-1]
+    street, city, state_zip = "", "", ""
+    if len(parts) >= 3:
+        street, city, state_zip = ", ".join(parts[:-2]), parts[-2], parts[-1]
+    elif len(parts) == 2:
+        if re.match(r"\d", parts[0]):
+            street, state_zip = parts  # "12 Oak St, IL 62701": no city given
+        else:
+            city, state_zip = parts
+    elif parts:
+        street = parts[0]
     m = re.match(r"([A-Za-z .]+?)\s*(\d{5}(?:-\d{4})?)?$", state_zip)
     return {"name": name or "", "street": street, "city": city, "state": (m.group(1).strip() if m else state_zip),
             "zip": (m.group(2) if m and m.group(2) else ""), "phone": phone or "", "website": website or "",
@@ -90,9 +104,10 @@ def compare(nap: dict, listing: dict) -> dict:
     addr = _norm(listing.get("address"))
     num = re.match(r"\s*(\d+)", nap.get("street") or "")
     zip_ok = not nap.get("zip") or nap["zip"][:5] in (listing.get("address") or "")
-    num_ok = not num or num.group(1) in (listing.get("address") or "")
-    street_ok = not nap.get("street") or _norm(nap["street"])[:12] in addr
-    out["address"] = {"status": "absent", "found": "missing"} if not listing.get("address") else \
+    num_ok = not num or re.search(rf"(?<!\d){num.group(1)}(?!\d)", listing.get("address") or "") is not None
+    street_ok = not nap.get("street") or _norm(nap["street"].split(",")[0])[:12] in addr  # suite may be left out
+    # Service-area businesses often hide their address: "not shown" isn't a wrong listing.
+    out["address"] = {"status": "unknown", "found": "not shown"} if not listing.get("address") else \
         {"status": "match"} if zip_ok and num_ok and street_ok else {"status": "mismatch", "found": listing.get("address")}
     if nap.get("phone"):
         out["phone"] = {"status": "absent", "found": "missing"} if not listing.get("phone") else \
@@ -172,7 +187,8 @@ def _run_audit(audit_id: int, batch: int = 5) -> None:
                 db.update("citation_listings", by_name[n]["id"], status="unavailable", checked_by="auto",
                           fields={"error": {"status": "unknown", "found": str(exc)[:200]}}, updated_at=db.now())
             continue
-        results = {str(f.get("directory", "")).lower(): f for f in (found if isinstance(found, list) else [])}
+        results = {str(f.get("directory")).strip().lower(): f for f in (found if isinstance(found, list) else [])
+                   if isinstance(f, dict) and str(f.get("directory") or "").strip()}
         for n, _ in chunk:
             f = results.get(n.lower()) or next((v for k, v in results.items() if n.lower() in k or k in n.lower()), None)
             row = by_name[n]

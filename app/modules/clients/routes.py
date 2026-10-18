@@ -37,7 +37,9 @@ def convert(contact_id: int) -> int:
     name = contact["business_name"] or f"{contact['first_name'] or ''} {contact['last_name'] or ''}".strip() or "Client"
     slug = brain.slugify(name)
     n = 1
-    while db.one("SELECT 1 FROM companies WHERE vault_slug = ?", slug):
+    # Also skip names whose vault folder exists: deleting a client keeps its vault, and a new client with the same
+    # name must not inherit that evidence and plan.
+    while db.one("SELECT 1 FROM companies WHERE vault_slug = ?", slug) or brain.vault_path(slug).exists():
         n += 1
         slug = f"{brain.slugify(name)}-{n}"
     cid = db.insert("companies", name=name, place_id=contact["place_id"], website=contact["website"] or (place or {}).get("website"),

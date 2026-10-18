@@ -13,7 +13,7 @@ from app.web import redirect
 router = APIRouter()
 
 NOT_EDITABLE = {"DATA_DIR"}  # the Windows app always sets it; changing it would move your data
-RESTART_NEEDED = {"PUBLIC_BASE_URL"}  # read once when the server starts
+RESTART_NEEDED = {"PUBLIC_BASE_URL", "PLACES_SCAN_DETAIL"}  # read once when the server starts
 
 
 def is_secret(key: str) -> bool:
@@ -35,6 +35,8 @@ def groups() -> list[dict]:
                 continue
             value = current.get(key) or settings.env(key)
             fields.append({"key": key, "secret": is_secret(key), "set": bool(value),
+                           # a Windows/system environment variable wins over .env, so editing it here would do nothing
+                           "system": key in settings.SYSTEM_ENV and bool(settings.env(key)),
                            "shown": mask(value) if is_secret(key) else value, "restart": key in RESTART_NEEDED,
                            # rarely needed: folded under "More options" unless already set
                            "more": (key in g.get("optional_keys", []) or g["id"] == "advanced") and not value})
@@ -51,6 +53,8 @@ async def save_keys(request: Request):
     editable = {f["key"]: f for g in groups() for f in g["fields"]}
     changes: dict[str, str | None] = {}
     for key, field in editable.items():
+        if field["system"]:
+            continue
         if form.get(f"clear_{key}"):
             if field["set"]:
                 changes[key] = None

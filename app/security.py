@@ -2,7 +2,9 @@
 
 1. Cross-site request forgery: a POST from another website (whose Origin/Referer is not this app)
    is rejected, except on the public endpoints customers use.
-2. Access: if APP_PASSWORD is set, admin pages need a login cookie. If it is not set, admin pages
+2. Framing: pages can only be shown inside this app (clickjacking), except hosted lead forms (/f/), which
+   clients may embed on their own websites.
+3. Access: if APP_PASSWORD is set, admin pages need a login cookie. If it is not set, admin pages
    only answer requests made directly on this computer; requests arriving through a tunnel or
    from the network get a 403, while public pages (forms, review links, share links) keep working.
 """
@@ -10,6 +12,7 @@ import hashlib
 import hmac
 import ipaddress
 import secrets
+import time
 from urllib.parse import urlsplit
 
 from fastapi import Request
@@ -44,9 +47,44 @@ def signed(sig: str, *parts: object) -> bool:
     return bool(sig) and hmac.compare_digest(sig, sign(*parts))
 
 
+SESSION_DAYS = 30
+
+
+def _session_mac(expires: int, nonce: str) -> str:
+    # Tied to the password: changing APP_PASSWORD logs every browser out.
+    return hmac.new(_secret(), f"{settings.env('APP_PASSWORD')}|{expires}|{nonce}".encode(), hashlib.sha256).hexdigest()
+
+
 def session_value() -> str:
-    pw = settings.env("APP_PASSWORD")
-    return hmac.new(_secret(), pw.encode(), hashlib.sha256).hexdigest()
+    """A new login cookie: expires after SESSION_DAYS, signed with the server secret and the current password."""
+    expires, nonce = int(time.time()) + SESSION_DAYS * 86400, secrets.token_urlsafe(12)
+    return f"{expires}.{nonce}.{_session_mac(expires, nonce)}"
+
+
+def valid_session(cookie: str) -> bool:
+    try:
+        expires_s, nonce, mac = cookie.split(".", 2)
+        expires = int(expires_s)
+    except ValueError:
+        return False
+    return expires > time.time() and hmac.compare_digest(mac, _session_mac(expires, nonce))
+
+
+# Failed logins per client in the last 15 minutes (in memory: the app is one process).
+_failures: dict[str, list[float]] = {}
+MAX_FAILURES, WINDOW = 10, 15 * 60
+
+
+def _client_key(request: Request) -> str:
+    fwd = request.headers.get("x-forwarded-for") or request.headers.get("cf-connecting-ip") or ""
+    return fwd.split(",")[0].strip() or (request.client.host if request.client else "?")
+
+
+def too_many_failures(request: Request) -> bool:
+    now = time.time()
+    recent = [t for t in _failures.get(_client_key(request), []) if now - t < WINDOW]
+    _failures[_client_key(request)] = recent
+    return len(recent) >= MAX_FAILURES
 
 
 def is_local(request: Request) -> bool:
@@ -74,14 +112,24 @@ def same_origin(request: Request) -> bool:
 
 
 async def middleware(request: Request, call_next):
+    response = await _guard(request, call_next)
+    if not request.url.path.startswith("/f/"):
+        response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+        response.headers.setdefault("Content-Security-Policy", "frame-ancestors 'self'")
+    return response
+
+
+async def _guard(request: Request, call_next):
     path = request.url.path
     if is_public(path):
         return await call_next(request)
     if request.method not in ("GET", "HEAD", "OPTIONS") and not same_origin(request):
         return PlainTextResponse("Blocked: this request came from another website.", status_code=403)
+    # The app's own JSON endpoints (e.g. Places search, which spends API credit) only answer the app's pages.
+    if path.startswith("/api/") and request.headers.get("sec-fetch-site", "same-origin") not in ("same-origin", "none"):
+        return PlainTextResponse("Blocked: this request came from another website.", status_code=403)
     if settings.env("APP_PASSWORD"):
-        cookie = request.cookies.get(COOKIE, "")
-        if not hmac.compare_digest(cookie, session_value()):
+        if not valid_session(request.cookies.get(COOKIE, "")):
             if request.method == "GET":
                 return RedirectResponse(f"/login?next={path}", status_code=303)
             return PlainTextResponse("Login required.", status_code=401)
@@ -112,10 +160,22 @@ def safe_next(url: str | None, default: str = "/") -> str:
     return url
 
 
-def login(password: str, next_url: str):
+def login(request: Request, password: str, next_url: str):
     pw = settings.env("APP_PASSWORD")
+    if too_many_failures(request):
+        return login_page(next_url, "Too many wrong passwords. Wait 15 minutes and try again.")
     if not pw or not hmac.compare_digest(password.encode(), pw.encode()):
+        _failures.setdefault(_client_key(request), []).append(time.time())
         return login_page(next_url, "Wrong password.")
+    _failures.pop(_client_key(request), None)
+    https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto", "").lower() == "https"
     resp = RedirectResponse(safe_next(next_url), status_code=303)
-    resp.set_cookie(COOKIE, session_value(), httponly=True, samesite="lax", max_age=60 * 60 * 24 * 30)
+    resp.set_cookie(COOKIE, session_value(), httponly=True, samesite="lax", secure=https,
+                    max_age=SESSION_DAYS * 86400)
+    return resp
+
+
+def logout():
+    resp = RedirectResponse("/login", status_code=303)
+    resp.delete_cookie(COOKIE)
     return resp

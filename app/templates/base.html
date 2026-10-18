@@ -32,6 +32,7 @@
     </div>
     {% endfor %}
     <button class="theme-toggle btn-sm" type="button" onclick="toggleTheme()" aria-label="Toggle light or dark theme">◐ Theme</button>
+    {% if app_password %}<form method="post" action="/logout" style="display:inline"><button class="btn-sm" type="submit">Log out</button></form>{% endif %}
   </aside>
   <main>
     {% if notices %}

@@ -249,9 +249,11 @@ def competitors(scan_id: int) -> list[dict]:
 
 
 def previous_scan(scan: dict) -> dict | None:
-    return db.one("SELECT * FROM scans WHERE place_id IS ? AND keyword = ? AND surface = ? AND status IN "
-                  "('completed','incomplete') AND id < ? ORDER BY id DESC LIMIT 1",
-                  scan["place_id"], scan["keyword"], scan["surface"], scan["id"])
+    # Only a like-for-like scan: a 9×9 Places grid compared with a 3×3 demo grid would show a fake change.
+    return db.one("SELECT * FROM scans WHERE place_id IS ? AND keyword = ? AND surface = ? AND provider = ? AND "
+                  "grid_size = ? AND shape IS ? AND status IN ('completed','incomplete') AND id < ? ORDER BY id DESC LIMIT 1",
+                  scan["place_id"], scan["keyword"], scan["surface"], scan["provider"], scan["grid_size"], scan["shape"],
+                  scan["id"])
 
 
 def history(place_id: int, keyword: str, surface: str) -> list[dict]:

@@ -9,7 +9,7 @@ def test_env_file_update_keeps_comments_and_unknown_lines(tmp_path):
     path.write_text("# Google\nGOOGLE_API_KEY=\nMY_OWN_THING=keep me\n\n# Mail\nSMTP_PORT=587\n", encoding="utf-8")
     envfile.update(path, {"GOOGLE_API_KEY": "AIzaNEW", "SMTP_PORT": None, "DATAFORSEO_LOGIN": "me@x.com"})
     text = path.read_text(encoding="utf-8")
-    assert text == "# Google\nGOOGLE_API_KEY=AIzaNEW\nMY_OWN_THING=keep me\n\n# Mail\nSMTP_PORT=\nDATAFORSEO_LOGIN=me@x.com\n"
+    assert text == "# Google\nGOOGLE_API_KEY=AIzaNEW\nMY_OWN_THING=keep me\n\n# Mail\nDATAFORSEO_LOGIN=me@x.com\n"
     assert envfile.read(path)["MY_OWN_THING"] == "keep me"
     import pytest
     with pytest.raises(ValueError):

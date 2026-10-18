@@ -24,16 +24,18 @@
     <div class="grid grid-3" style="margin-top:12px">
     {% for p in rows %}
       <div class="card" style="padding:8px;margin:0">
-        <label style="font-weight:400"><input type="checkbox" name="photo_id" value="{{ p.id }}" {% if p.status != 'library' %}disabled{% endif %}>
+        <label style="font-weight:400"><input type="checkbox" name="photo_id" value="{{ p.id }}" {% if p.status not in ['library', 'failed'] %}disabled{% endif %}>
           <img src="/media/photos/{{ co.id }}/{{ p.filename }}" alt="{{ p.caption or '' }}" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px"></label>
         <div class="hint" style="word-break:break-all">{{ p.filename }}</div>
         <div><span class="badge">{{ p.status }}</span>{% if p.scheduled_at %} <span class="hint">{{ p.scheduled_at[:10] }}</span>{% endif %}{% if p.gps_lat %} <span class="badge" title="metadata only">GPS</span>{% endif %}</div>
+        {% if p.status == "failed" and p.error %}<div class="hint" style="color:var(--bad)">{{ p.error }} Tick it to reschedule.</div>{% endif %}
         <div class="actions" style="margin-top:6px">
-          {% if p.status != "published" %}
+          {% if p.status not in ["published", "publishing"] %}
             {% if connected and co.gbp_location %}<button class="btn-sm" formaction="/gbp/photos/{{ p.id }}/publish">Publish</button>
             {% else %}<a class="btn btn-sm" href="/media/photos/{{ co.id }}/{{ p.filename }}" download>Download</a>
               <button class="btn-sm" formaction="/gbp/photos/{{ p.id }}/mark_published">Mark uploaded</button>{% endif %}
-            {% if p.status == "scheduled" %}<button class="btn-sm" formaction="/gbp/photos/{{ p.id }}/unschedule">Unschedule</button>{% endif %}
+            {% if p.status == "scheduled" %}<button class="btn-sm" formaction="/gbp/photos/{{ p.id }}/unschedule">Unschedule</button>
+            {% elif p.status == "failed" %}<button class="btn-sm" formaction="/gbp/photos/{{ p.id }}/unschedule">Back to library</button>{% endif %}
           {% endif %}
           <button class="btn-sm btn-danger" formaction="/gbp/photos/{{ p.id }}/delete">✕</button>
         </div>

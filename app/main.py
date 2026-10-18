@@ -50,8 +50,13 @@ def login_form(next: str = "/"):
 
 
 @app.post("/login")
-def login_submit(password: str = Form(""), next: str = Form("/")):
-    return security.login(password, next)
+def login_submit(request: Request, password: str = Form(""), next: str = Form("/")):
+    return security.login(request, password, next)
+
+
+@app.post("/logout")
+def logout():
+    return security.logout()
 
 
 @app.get("/")

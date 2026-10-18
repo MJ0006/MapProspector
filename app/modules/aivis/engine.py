@@ -21,6 +21,13 @@ DIRECTORY_HINTS = ("yelp", "bbb.org", "angi", "homeadvisor", "thumbtack", "yello
                    "tripadvisor", "reddit", "google.", "mapquest", "houzz", "manta", "bing.", "apple.")
 
 
+
+def safe_error(exc: Exception) -> str:
+    """Error text for the report (shown on share pages): no URLs or query strings, which can carry API keys."""
+    text = re.sub(r"https?://\S+", "[url]", str(exc))
+    text = re.sub(r"(?i)(key|token|secret|password)=[^\s&'\"]+", r"\1=[hidden]", text)
+    return text[:200]
+
 def questions(category: str, city: str) -> list[str]:
     c, where = category.strip().lower(), city.strip()
     return [
@@ -39,23 +46,33 @@ def _core(name: str) -> str:
 
 def same_business(a: str, b: str) -> bool:
     ca, cb = _core(a), _core(b)
-    return bool(ca and cb) and (ca == cb or (min(len(ca), len(cb)) >= 6 and (ca in cb or cb in ca)))
+    if not (ca and cb):
+        return False
+    if ca == cb:
+        return True
+    # "Acme Plumbing" in "Acme Plumbing & Drain" is the same business; a generic "The Plumber" in "Joe the Plumber"
+    # isn't: the shorter name must be specific (2+ words after dropping "the/llc/…", or 10+ letters).
+    shorter = a if len(ca) <= len(cb) else b
+    specific = len(re.findall(r"[a-z0-9]+", re.sub(r"\b(llc|inc|co|corp|company|ltd|the|and)\b", " ", shorter.lower()))) >= 2
+    return (specific or min(len(ca), len(cb)) >= 10) and (ca in cb or cb in ca)
 
 
 def parse_answer(text: str) -> list[dict]:
     """Ordered businesses from an answer: the trailing JSON line, else numbered/bold list items."""
-    for line in reversed([l for l in text.strip().splitlines() if l.strip()][-4:]):
-        if '"businesses"' in line:
-            try:
-                data = ai.extract_json(line)
-                return [{"name": b.get("name", "").strip(), "reason": b.get("reason", "").strip()}
-                        for b in data.get("businesses", []) if b.get("name")]
-            except ValueError:
-                break
+    for line in reversed([l for l in text.strip().splitlines() if '"businesses"' in l]):
+        try:
+            data = ai.extract_json(line[line.index("{"):] if "{" in line else line)
+        except ValueError:
+            continue
+        if isinstance(data, dict) and isinstance(data.get("businesses"), list):
+            return [{"name": str(b.get("name") or "").strip(), "reason": str(b.get("reason") or "").strip()}
+                    for b in data["businesses"] if isinstance(b, dict) and str(b.get("name") or "").strip()]
     out = []
-    for m in re.finditer(r"^\s*(?:\d+[.)]|[-*•])\s*\**([^*:\n–—-]{3,80})\**", text, re.M):
-        name = m.group(1).strip(" .")
-        if name and not any(same_business(name, o["name"]) for o in out):
+    for m in re.finditer(r"^\s*(?:\d+[.)]|[-*•])\s*\**([^*:\n]{3,80})", text, re.M):
+        name = re.split(r"\s+[-–—]\s+", m.group(1))[0].strip(" .*")
+        if not name or "://" in name or "](" in name or name.lower().startswith(("http", "www.", "[")):
+            continue  # a source link, not a business
+        if not any(same_business(name, o["name"]) for o in out):
             out.append({"name": name, "reason": ""})
     return out
 
@@ -211,10 +228,12 @@ def _run(run_id: int) -> None:
         for q in questions(row["category"], row["city"]):
             try:
                 ans = ai_engines.ask(engine, q + ANSWER_FORMAT)
+                if not (ans.get("text") or "").strip():
+                    raise ValueError("the engine returned an empty answer")
                 rows.append({"engine": engine, "prompt": q, "text": ans["text"], "sources": ans["sources"],
                              "businesses": parse_answer(ans["text"])})
             except Exception as exc:
-                rows.append({"engine": engine, "prompt": q, "error": str(exc)[:200], "text": "", "sources": [],
+                rows.append({"engine": engine, "prompt": q, "error": safe_error(exc), "text": "", "sources": [],
                              "businesses": []})
     aio = None
     if settings.enabled("dataforseo") and place and place.get("lat") is not None:

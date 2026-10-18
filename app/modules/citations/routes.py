@@ -9,7 +9,7 @@ from app import brain, db, journal, places_store, settings
 from app.modules.citations import engine
 from app.modules.clients.routes import company_or_404
 from app.providers import gbp_api
-from app.web import redirect, render
+from app.web import redirect, render, csv_cell
 
 router = APIRouter()
 
@@ -142,7 +142,7 @@ def client_nap_csv(company_id: int):
     buf = io.StringIO()
     w = csv.DictWriter(buf, fieldnames=engine.PROFILE_KEYS)
     w.writeheader()
-    w.writerow(nap)
+    w.writerow({k: csv_cell(v) for k, v in nap.items()})
     return Response(buf.getvalue(), media_type="text/csv",
                     headers={"Content-Disposition": f'attachment; filename="nap-{company_id}.csv"'})
 
@@ -156,7 +156,8 @@ def client_citations_export(company_id: int):
     w = csv.writer(buf)
     w.writerow(["directory", "url", "status"])
     for r in rows:
-        w.writerow([r["directory"], r["listing_url"] or "", {"live": "verified", "wrong": "inconsistent"}.get(r["status"], r["status"])])
+        w.writerow([csv_cell(r["directory"]), csv_cell(r["listing_url"]),
+                    {"live": "verified", "wrong": "inconsistent"}.get(r["status"], r["status"])])
     return Response(buf.getvalue(), media_type="text/csv")
 
 

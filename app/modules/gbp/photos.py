@@ -61,9 +61,10 @@ def stamp_gps(path: Path, lat: float, lng: float) -> bool:
 
 
 def schedule_drip(company_id: int, photo_ids: list[int], start: datetime, every_days: int) -> None:
-    for i, pid in enumerate(photo_ids):
+    ok = {r["id"] for r in db.all("SELECT id FROM photos WHERE company_id = ? AND status IN ('library', 'failed')", company_id)}
+    for i, pid in enumerate([p for p in photo_ids if p in ok]):
         when = start + timedelta(days=every_days * i)
-        db.update("photos", pid, status="scheduled", scheduled_at=when.isoformat(timespec="seconds"))
+        db.update("photos", pid, status="scheduled", scheduled_at=when.isoformat(timespec="seconds"), error=None)
 
 
 def publish(photo_id: int) -> str:
@@ -73,7 +74,7 @@ def publish(photo_id: int) -> str:
         return "manual"
     url = f"{settings.PUBLIC_BASE_URL}/media/photos/{p['company_id']}/{p['filename']}"
     gbp_api.upload_photo(co["gbp_location"], url, p["category"] or "ADDITIONAL")
-    db.update("photos", photo_id, status="published", published_at=db.now())
+    db.update("photos", photo_id, status="published", published_at=db.now(), error=None)
     return "published"
 
 
@@ -90,10 +91,11 @@ def publish_due() -> None:
                 db.insert("tasks", company_id=co["company_id"], title=f"Upload scheduled photo #{p['id']} to Google",
                           due_at=now, created_at=db.now())
         except Exception as exc:
-            db.update("photos", p["id"], status="failed")
+            db.update("photos", p["id"], status="failed", error=str(exc)[:300])
             journal.failure("photos", "publish_due", exc, subject_type="photo", subject_id=p["id"])
 
 
 @jobs.on_startup
 def recover_publishing() -> None:
-    db.run("UPDATE photos SET status = 'failed' WHERE status = 'publishing'")
+    db.run("UPDATE photos SET status = 'failed', error = 'The app closed while publishing. Check Google, then reschedule "
+           "or mark it uploaded.' WHERE status = 'publishing'")
