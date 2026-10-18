@@ -1,0 +1,9 @@
+{% extends "share_base.html" %}
+{% block content %}
+<div class="page-head">
+  <div><h1>AI visibility report: {{ r.business_name }}</h1><p>"{{ r.category }}" in {{ r.city }} · {{ (r.completed_at or r.created_at or "")[:10] }}</p></div>
+  <button class="no-print" type="button" onclick="window.print()">Print / PDF</button>
+</div>
+<p class="hint">AI answers change from run to run; this is a snapshot of real answers on the date above.</p>
+{% if report %}{% include "aivis/_report.html" %}{% endif %}
+{% endblock %}

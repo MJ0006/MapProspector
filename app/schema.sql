@@ -194,7 +194,8 @@ CREATE TABLE IF NOT EXISTS audits (
   id INTEGER PRIMARY KEY,
   place_id INTEGER REFERENCES places(id) ON DELETE CASCADE,
   url TEXT, checks TEXT NOT NULL,    -- JSON [{key,label,group,status: pass|fail|warn|na,detail,source}]
-  issues INTEGER NOT NULL DEFAULT 0, created_at TEXT
+  issues INTEGER NOT NULL DEFAULT 0,  -- -1 while running
+  share_token TEXT UNIQUE, created_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS aivis_runs (

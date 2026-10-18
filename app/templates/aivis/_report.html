@@ -1,0 +1,73 @@
+{% set rep = report %}
+<div class="grid grid-4">
+  <div class="card stat"><b class="grade">{{ rep.grade }}</b><span>Score {{ rep.score }}/100 = 100 × (recommended + ½ × mentioned) ÷ {{ rep.answers }} answers</span></div>
+  <div class="card stat"><b>{{ rep.recommended }}</b><span>Answers recommending you (top 3)</span></div>
+  <div class="card stat"><b>{{ rep.mentioned }}</b><span>Answers mentioning you lower down</span></div>
+  <div class="card stat"><b>{{ rep.answers - rep.recommended - rep.mentioned }}</b><span>Answers without you</span></div>
+</div>
+<div class="card">
+  <h2>Engine by engine</h2>
+  <div class="grid grid-3">
+  {% for e in rep.engines %}
+    <div>
+      <h3>{{ e.name }}</h3>
+      <p>Named in <b>{{ e.appearances }}/{{ e.prompts }}</b> answers{% if e.cited %} · your site cited {{ e.cited }}×{% endif %}
+        {% if e.you_best %} · best position #{{ e.you_best }}{% endif %}</p>
+      {% for t in e.top or [] %}<div class="hint">{{ loop.index }}. {{ t.name }} — top pick {{ t.wins }}×, named {{ t.mentions }}×</div>{% endfor %}
+    </div>
+  {% endfor %}
+  </div>
+</div>
+<div class="card">
+  <h2>Every question, every engine</h2>
+  {% set qs = [] %}{% for p in rep.prompts %}{% if p.prompt not in qs %}{% set _ = qs.append(p.prompt) %}{% endif %}{% endfor %}
+  <div class="table-wrap"><table class="matrix">
+    <tr><th>Question asked</th>{% for e in rep.engines %}<th>{{ e.name }}</th>{% endfor %}</tr>
+    {% for q in qs %}
+    <tr><td>{{ q }}</td>
+      {% for e in rep.engines %}{% set cell = (rep.prompts | selectattr("prompt", "equalto", q) | selectattr("engine", "equalto", e.engine) | list) %}
+      {% set c = cell[0] if cell else None %}
+      <td>{% if not c %}—{% elif c.presence == "recommended" %}<span class="cell-rec">#{{ c.position }}</span>{% elif c.presence == "mentioned" %}<span class="cell-men">#{{ c.position }}</span>{% elif c.presence == "error" %}<span class="hint" title="{{ c.error }}">error</span>{% else %}<span class="cell-abs">—</span>{% endif %}{% if c and c.cited %} <span class="badge good" title="your site cited">cited</span>{% endif %}</td>
+      {% endfor %}</tr>
+    {% endfor %}
+  </table></div>
+  <div class="legend" style="margin-top:8px"><span><i style="background:var(--good)"></i>Recommended (top 3)</span><span><i style="background:var(--warn)"></i>Mentioned</span><span>— not named</span></div>
+</div>
+{% if rep.aio_grid %}
+<div class="card">
+  <h2>Google AI Overviews across town: "{{ rep.aio_grid.keyword }}"</h2>
+  <div class="mini-grid" style="grid-template-columns:repeat({{ rep.aio_grid.size }}, 44px)">
+    {% for p in rep.aio_grid.pins %}
+    <div style="background:{{ 'var(--rank-1)' if p.status == 'recommended' else 'var(--rank-2)' if p.status == 'mentioned' else 'var(--rank-4)' if p.status == 'absent' else 'var(--rank-none)' }}" title="{{ p.status }}">{{ ("#" ~ p.position) if p.position else ("✓" if p.status == "mentioned" else "") }}</div>
+    {% endfor %}
+  </div>
+  <p class="hint" style="margin-top:8px">Green: AI Overview recommends you · amber: mentioned · red: AI Overview shown without you · grey: no AI Overview at that spot. {{ rep.aio_grid.spacing_miles }} mi spacing.</p>
+</div>
+{% endif %}
+<div class="grid grid-2">
+  <div class="card">
+    <h2>Who the AI names (share of voice)</h2>
+    {% for c in rep.competitors %}
+    <div style="margin-bottom:6px"><div class="actions" style="justify-content:space-between"><span>{{ c.name }}{% if c.you %} <span class="badge info">you</span>{% endif %}</span><span class="hint">{{ c.share }}%</span></div>
+      <div class="bar"><i style="width:{{ c.share }}%"></i></div></div>
+    {% endfor %}
+  </div>
+  <div class="card">
+    <h2>Sources the answers cite</h2>
+    {% for s in rep.sources %}
+    <div style="margin-bottom:6px"><div class="actions" style="justify-content:space-between"><span>{{ s.name }}{% if s.is_you %} <span class="badge info">your site</span>{% elif s.directory %} <span class="badge">directory</span>{% endif %}</span><span class="hint">{{ s.share }}%</span></div>
+      <div class="bar"><i style="width:{{ s.share }}%"></i></div></div>
+    {% else %}<div class="empty">No sources were returned.</div>{% endfor %}
+  </div>
+</div>
+{% if rep.reasons %}
+<div class="card">
+  <h2>Why they recommended others (in the engines' words)</h2>
+  {% for q in rep.reasons %}<p><b>{{ q.name }}</b> <span class="hint">· {{ q.engine }}</span><br>"{{ q.quote }}"</p>{% endfor %}
+</div>
+{% endif %}
+<div class="card">
+  <h2>What to work on</h2>
+  {% for rec in rep.recommendations %}<p><b>{{ rec.title }}.</b> {{ rec.body }} <span class="hint">(Local SEO Brain: {{ rec.source }})</span></p>{% endfor %}
+  <p class="hint">No one can guarantee an AI assistant will recommend a business. These are the signals you control.</p>
+</div>

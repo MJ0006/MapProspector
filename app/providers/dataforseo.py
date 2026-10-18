@@ -95,6 +95,21 @@ def organic_search(keyword: str, lat: float, lng: float, depth: int = 20,
     }
 
 
+def ai_overview(keyword: str, lat: float, lng: float, client: httpx.Client | None = None) -> dict:
+    """Google AI Overview seen from (lat, lng): {'present', 'text', 'references': [urls]}."""
+    task = _post("/serp/google/organic/live/advanced", [{
+        "keyword": keyword, "language_code": "en", "depth": 10, "load_async_ai_overview": True,
+        "location_coordinate": f"{lat:.7f},{lng:.7f}",
+    }], client)
+    items = ((task.get("result") or [{}])[0] or {}).get("items") or []
+    aio = next((i for i in items if i.get("type") == "ai_overview"), None)
+    if not aio:
+        return {"present": False, "text": "", "references": []}
+    parts = [aio.get("text") or ""] + [(s.get("text") or "") for s in aio.get("items") or []]
+    refs = [r.get("url") for r in aio.get("references") or [] if r.get("url")]
+    return {"present": True, "text": "\n".join(p for p in parts if p), "references": refs}
+
+
 def keyword_overview(keywords: list[str], location_code: int = 2840,
                      client: httpx.Client | None = None) -> list[dict]:
     """Search volume, CPC, competition, difficulty, intent per keyword (location 2840 = US)."""

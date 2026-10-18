@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div><h1>AI visibility</h1><p>Ask AI assistants what local customers ask, and see who they recommend.</p></div>
+</div>
+{% if not engines %}<div class="notice warn">No engine available. Install Claude Code (<code>claude</code> CLI) or add OpenAI / Perplexity / Gemini / xAI keys in <code>.env</code>.</div>
+{% else %}<div class="notice">Engines: <b>{{ engines | join(", ") }}</b>. Each check asks 5 questions per engine{{ "; Google AI Overviews are mapped on a 5×5 grid via DataForSEO" if modules.dataforseo }}.</div>{% endif %}
+<form class="card" method="post" action="/aivis">
+  <input type="hidden" name="place_id" value="{{ place.id if place else '' }}">
+  <div class="row">
+    <div class="field"><label>Business name</label><input type="text" name="business_name" value="{{ place.name if place else '' }}" required></div>
+    <div class="field"><label>City or area</label><input type="text" name="city" value="{{ city or '' }}" placeholder="Denver, CO" required></div>
+    <div class="field"><label>Search term / category</label><input type="text" name="category" value="{{ place.primary_category if place and place.primary_category else '' }}" placeholder="roofer" required></div>
+    {% if not place %}<div class="field"><label>Website (to detect citations)</label><input type="url" name="website"></div>{% endif %}
+  </div>
+  <button class="primary" type="submit" {% if not engines %}disabled{% endif %}>Run check</button>
+  <span class="hint">Takes a few minutes. Answers vary run to run, so treat one check as a snapshot.</span>
+</form>
+{% if runs %}
+<div class="card">
+  <h2>Previous checks</h2>
+  <table><tr><th>Business</th><th>Area</th><th>Term</th><th>Status</th><th class="num">Score</th><th>Date</th></tr>
+  {% for r in runs %}{% set rep = r.report | loads({}) %}
+  <tr><td><a href="/aivis/{{ r.id }}">{{ r.business_name }}</a></td><td>{{ r.city }}</td><td>{{ r.category }}</td>
+    <td><span class="badge {{ 'good' if r.status == 'completed' else 'bad' if r.status == 'failed' else 'info' }}">{{ r.status }}</span></td>
+    <td class="num">{{ (rep.score ~ " " ~ rep.grade) if rep else "—" }}</td><td class="hint">{{ (r.created_at or "")[:10] }}</td></tr>
+  {% endfor %}</table>
+</div>
+{% endif %}
+{% endblock %}

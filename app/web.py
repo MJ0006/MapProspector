@@ -19,6 +19,7 @@ NAV = [
         ("/rank", "Rank tracker"),
         ("/aivis", "AI visibility"),
         ("/citations", "Citation audit"),
+        ("/tools", "Content tools"),
     ]),
     ("CRM", [
         ("/crm/contacts", "Contacts"),
