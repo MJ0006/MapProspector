@@ -33,6 +33,7 @@ NAV = [
     ("Clients", [
         ("/clients", "Clients"),
         ("/reports", "Reports"),
+        ("/ask", "Ask (AI)"),
     ]),
     ("System", [
         ("/settings", "Settings"),

@@ -1,6 +1,6 @@
 import json
 
-from app import db, jobs
+from app import db
 from app.modules.crm import automations, pipeline, spam
 
 

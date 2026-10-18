@@ -10,7 +10,7 @@ from pathlib import Path
 from fastapi import FastAPI, Form, Request
 from fastapi.staticfiles import StaticFiles
 
-from app import db, jobs, settings
+from app import db, jobs
 from app.web import redirect, render
 
 logging.basicConfig(level=logging.INFO)

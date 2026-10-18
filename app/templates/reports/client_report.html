@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ r.name }} · {{ d.co.name }}</title>
+<style>
+  :root { --accent: {{ brand.color or "#2563eb" }}; }
+  body { font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #16191f; background: #f6f7f9; margin: 0; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 28px 16px 48px; }
+  header { display: flex; align-items: center; gap: 12px; border-bottom: 3px solid var(--accent); padding-bottom: 14px; margin-bottom: 20px; }
+  header img { height: 36px; } h1 { font-size: 24px; margin: 0; } h2 { font-size: 18px; margin: 0 0 10px; color: var(--accent); }
+  .muted { color: #5e6673; font-size: 13px; } section { background: #fff; border: 1px solid #e3e6eb; border-radius: 10px; padding: 16px 18px; margin-bottom: 16px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .tile { background: #f1f3f6; border-radius: 8px; padding: 10px 12px; } .tile b { display: block; font-size: 22px; }
+  table { width: 100%; border-collapse: collapse; } td, th { text-align: left; padding: 6px 8px; border-bottom: 1px solid #e3e6eb; }
+  .grid { display: inline-grid; gap: 2px; } .grid div { width: 22px; height: 22px; border-radius: 4px; color: #fff; font: 700 10px/22px system-ui; text-align: center; }
+  .r1 { background: #16a34a; } .r2 { background: #f59e0b; } .r3 { background: #f97316; } .r4 { background: #dc2626; } .rn { background: #9ca3af; }
+  .good { color: #15803d; } .bad { color: #b91c1c; } .md table { font-size: 13px; }
+  @media print { body { background: #fff; } section { break-inside: avoid; } }
+</style></head>
+<body><div class="wrap">
+<header>{% if brand.logo %}<img src="{{ brand.logo }}" alt="">{% endif %}
+  <div><h1>{{ r.name }}: {{ d.co.name }}</h1><div class="muted">{{ d.since }} → {{ d.today }} · prepared by {{ brand.name }}</div></div></header>
+{% if note %}<section><p>{{ note }}</p></section>{% endif %}
+
+{% if d.rankings is defined %}
+<section><h2>Local rankings</h2>
+  {% if d.rankings %}
+  {% for x in d.rankings %}
+  <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-bottom:14px">
+    <div class="grid" style="grid-template-columns:repeat({{ x.size }}, 22px)">
+      {% if x.shape == "square" %}{% for rank, ok in x.cells %}<div class="{{ 'rn' if not ok or not rank else 'r1' if rank <= 3 else 'r2' if rank <= 6 else 'r3' if rank <= 10 else 'r4' }}">{{ rank or "" }}</div>{% endfor %}{% endif %}
+    </div>
+    <div><b>"{{ x.scan.keyword }}"</b> <span class="muted">{{ (x.scan.completed_at or "")[:10] }}</span><br>
+      Average rank {{ x.stats.avg_rank_all }} (not found counted as 21) · top-3 at {{ x.stats.top3_pct }}% of points
+      {% if x.change is not none %}<br><span class="{{ 'good' if x.change > 0 else 'bad' if x.change < 0 else '' }}">{{ "Improved" if x.change > 0 else "Down" if x.change < 0 else "No change" }} {{ x.change | abs }} positions since the previous scan</span>{% endif %}
+      {% if x.scan.provider == "demo" %}<br><span class="bad">Demo data</span>{% endif %}</div>
+  </div>
+  {% endfor %}
+  <p class="muted">Each square is a Google search from that spot on the map; numbers are the business's position. Rankings move during the day, so each scan is a snapshot.</p>
+  {% else %}<p class="muted">No scans yet.</p>{% endif %}
+</section>
+{% endif %}
+
+{% if d.reviews is defined %}
+<section><h2>Reviews</h2>
+  <div class="tiles"><div class="tile"><b>{{ d.reviews.avg or "—" }}</b>average rating</div><div class="tile"><b>{{ d.reviews.count }}</b>reviews tracked</div>
+    <div class="tile"><b>{{ d.reviews.new | length }}</b>new this period</div><div class="tile"><b>{{ d.reviews.clicked }}</b>review-link clicks</div></div>
+  {% for rv in d.reviews.new %}<p>{{ "★" * (rv.rating or 0) }} {{ (rv.text or "")[:220] }} <span class="muted">{{ rv.review_date }}</span></p>{% endfor %}
+</section>
+{% endif %}
+
+{% if d.activity is defined %}
+<section><h2>Work done this period</h2>
+  <div class="tiles"><div class="tile"><b>{{ d.activity.posts | length }}</b>Google posts published</div><div class="tile"><b>{{ d.activity.photos }}</b>photos added</div>
+    <div class="tile"><b>{{ d.activity.replies }}</b>review replies</div><div class="tile"><b>{{ d.activity.tasks | length }}</b>tasks completed</div></div>
+  {% if d.activity.tasks %}<ul>{% for t in d.activity.tasks %}<li>{{ t.title }}</li>{% endfor %}</ul>{% endif %}
+</section>
+{% endif %}
+
+{% if d.lock is defined and d.lock %}
+<section><h2>Profile changes caught</h2>
+  <table>{% for c in d.lock %}<tr><td>{{ c.field }}</td><td>changed to "{{ c.live_value }}"</td><td>{{ c.status }}</td><td class="muted">{{ (c.detected_at or "")[:10] }}</td></tr>{% endfor %}</table>
+</section>
+{% endif %}
+
+{% if d.citations is defined and d.citations %}
+<section><h2>Directory listings</h2><p>Citation score <b>{{ d.citations.grade }} ({{ d.citations.score }}/100)</b> as of {{ (d.citations.completed_at or "")[:10] }}. Score = (consistent + ½ × with issues) ÷ directories checked.</p></section>
+{% endif %}
+
+{% if d.ai_visibility is defined and d.ai_visibility %}
+<section><h2>AI assistants</h2><p>Recommended in <b>{{ d.ai_visibility.recommended }}</b> and mentioned in <b>{{ d.ai_visibility.mentioned }}</b> of {{ d.ai_visibility.answers }} AI answers to local questions ({{ d.ai_visibility.date }}). AI answers vary between runs.</p></section>
+{% endif %}
+
+{% if d.plan is defined and d.plan and d.plan.scorecard %}
+<section class="md"><h2>Health scorecard (draft)</h2>{{ d.plan.scorecard | safe }}</section>
+{% if d.plan.roadmap %}<section class="md"><h2>Roadmap (draft)</h2>{{ d.plan.roadmap | safe }}</section>{% endif %}
+{% endif %}
+<p class="muted">{{ brand.name }}{% if brand.email %} · {{ brand.email }}{% endif %}. No ranking position can be guaranteed; this report shows measured data.</p>
+</div></body></html>

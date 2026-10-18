@@ -79,5 +79,5 @@ def publish_due() -> None:
                 co = db.one("SELECT company_id FROM photos WHERE id = ?", p["id"])
                 db.insert("tasks", company_id=co["company_id"], title=f"Upload scheduled photo #{p['id']} to Google",
                           due_at=now, created_at=db.now())
-        except gbp_api.GBPError as exc:
+        except gbp_api.GBPError:
             db.update("photos", p["id"], status="failed")

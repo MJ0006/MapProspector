@@ -1,5 +1,4 @@
 from app import ai, brain, db
-from tests.conftest import FIXTURES  # noqa: F401
 
 
 def test_pages_render(client):

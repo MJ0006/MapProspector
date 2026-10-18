@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "mapprospector": {
+      "command": "python3",
+      "args": ["-m", "app.mcp_server"]
+    }
+  }
+}

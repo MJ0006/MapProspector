@@ -20,15 +20,21 @@ def available() -> bool:
     return shutil.which("claude") is not None
 
 
-def ask(prompt: str, *, web: bool = False, timeout: int = TIMEOUT) -> str:
-    """Run one prompt. web=True lets Claude use web search/fetch (AI visibility checks)."""
+def ask(prompt: str, *, web: bool = False, timeout: int = TIMEOUT, tools: list[str] | None = None,
+        mcp: bool = False) -> str:
+    """Run one prompt. web=True lets Claude use web search/fetch (AI visibility, citation checks).
+    mcp=True connects the MapProspector MCP server (.mcp.json) so Claude can read your data;
+    `tools` lists the only tools Claude may use without asking."""
     if not available():
         raise AIUnavailable("The `claude` CLI is not installed or not on PATH.")
     cmd = ["claude", "-p", prompt, "--output-format", "text"]
-    if web:
-        cmd += ["--allowedTools", "WebSearch,WebFetch"]
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout,
-                          cwd=settings.DATA_DIR if settings.DATA_DIR.exists() else None)
+    allowed = list(tools or []) + (["WebSearch", "WebFetch"] if web else [])
+    if mcp:
+        cmd += ["--mcp-config", str(settings.ROOT / ".mcp.json"), "--strict-mcp-config"]
+    if allowed:
+        cmd += ["--allowedTools", ",".join(allowed)]
+    cwd = settings.ROOT if mcp else (settings.DATA_DIR if settings.DATA_DIR.exists() else None)
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=cwd)
     if proc.returncode != 0:
         raise AIUnavailable((proc.stderr or proc.stdout or "claude exited with an error").strip()[:500])
     return proc.stdout.strip()

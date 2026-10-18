@@ -298,7 +298,7 @@ def lock_page(request: Request, company_id: int):
 
 @router.post("/clients/{company_id}/lock/{action}")
 def lock_action(company_id: int, action: str):
-    co = company_or_404(company_id)
+    company_or_404(company_id)
     try:
         if action == "approve":
             lock.approve(company_id)

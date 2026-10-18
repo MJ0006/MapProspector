@@ -2,7 +2,7 @@ import csv
 import io
 import secrets
 
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import Response
 
 from app import brain, db, jobs, places_store, settings

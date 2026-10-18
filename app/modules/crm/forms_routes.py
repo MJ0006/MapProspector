@@ -1,6 +1,5 @@
 """Lead-capture forms + spam filters (D4). Public form: /f/{token} (HTML page) and POST /f/{token}
 (also accepts posts from your own website form; see the embed snippet on the forms page)."""
-import json
 import secrets
 
 from fastapi import APIRouter, Form, HTTPException, Request
@@ -128,7 +127,7 @@ async def public_form_submit(request: Request, token: str):
         if f.get("required") and not data.get(f["name"]):
             raise HTTPException(400, f"{f['label']} is required")
     ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "").split(",")[0].strip()
-    result = ingest_submission(form, data, ip or None, request.headers.get("cf-ipcountry"))
+    ingest_submission(form, data, ip or None, request.headers.get("cf-ipcountry"))
     if "application/json" in request.headers.get("accept", ""):
         return JSONResponse({"ok": True})
     return redirect(f"/f/{token}?sent=1")

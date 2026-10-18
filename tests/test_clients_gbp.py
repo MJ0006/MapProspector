@@ -1,6 +1,5 @@
 import io
 import json
-import time
 
 import httpx
 from PIL import Image
