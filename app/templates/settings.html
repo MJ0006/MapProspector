@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Settings</h1><p>API keys live in your <code>.env</code> file (never in the database or repo). Branding applies to reports, share pages and review-request pages.</p></div>
+</div>
+{% if saved %}<div class="notice good">Saved.</div>{% endif %}
+<div class="grid grid-2">
+  <div class="card">
+    <h2>Integrations</h2>
+    <table>
+      <tr><th>Module</th><th>Status</th><th>Enables</th></tr>
+      {% for key, label, what in integrations %}
+      <tr>
+        <td>{{ label }}</td>
+        <td>{% if modules[key] %}<span class="badge good">on</span>{% else %}<span class="badge">off</span>{% endif %}</td>
+        <td class="hint">{{ what }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    <p class="hint" style="margin-top:10px">Edit <code>.env</code> (see <code>.env.example</code>) and restart the app to change these.</p>
+    {% if modules.google_oauth %}
+    <h3 style="margin-top:14px">Google account</h3>
+    {% if google_connected %}<p><span class="badge good">connected</span> Business Profile / Search Console access granted.</p>
+    {% else %}<p><a class="btn" href="/gbp/oauth/start">Connect Google account</a></p>{% endif %}
+    {% endif %}
+  </div>
+  <div class="card">
+    <h2>Branding (white label)</h2>
+    <form method="post" action="/settings">
+      <div class="field"><label>Agency / brand name</label><input type="text" name="brand_name" value="{{ brand.name }}"></div>
+      <div class="row">
+        <div class="field"><label>Accent colour</label><input type="text" name="brand_color" value="{{ brand.color }}" placeholder="#2563eb"></div>
+        <div class="field"><label>Logo URL</label><input type="url" name="brand_logo" value="{{ brand.logo }}" placeholder="https://..."></div>
+      </div>
+      <div class="field"><label>Reply-to email</label><input type="email" name="brand_email" value="{{ brand.email }}"></div>
+      <div class="field"><label>Postal address (used in outreach footers)</label><input type="text" name="brand_address" value="{{ brand.address }}"></div>
+      <button class="primary" type="submit">Save</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

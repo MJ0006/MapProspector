@@ -1,0 +1,3 @@
+[submodule "vendor/local-seo-brain"]
+	path = vendor/local-seo-brain
+	url = https://github.com/AI-Marketing-Hub/local-seo-brain.git

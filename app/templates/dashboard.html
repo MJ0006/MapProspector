@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Dashboard</h1><p>Find local businesses, prove the opportunity, win them, then run their local SEO.</p></div>
+  <div class="actions"><a class="btn btn-primary" href="/leads/search">Find leads</a><a class="btn" href="/rank/new">New rank scan</a></div>
+</div>
+<div class="grid grid-4">
+  <a class="card stat" href="/crm/contacts"><b>{{ counts.leads }}</b><span>Contacts &amp; leads</span></a>
+  <a class="card stat" href="/clients"><b>{{ counts.clients }}</b><span>Clients</span></a>
+  <a class="card stat" href="/rank"><b>{{ counts.scans }}</b><span>Completed scans</span></a>
+  <a class="card stat" href="/crm/tasks"><b>{{ counts.tasks_due }}</b><span>Tasks due within a day</span></a>
+</div>
+<div class="grid grid-3">
+  <a class="card stat" href="/crm/outbox"><b>{{ counts.outbox }}</b><span>Messages waiting for approval</span></a>
+  <a class="card stat" href="/clients"><b>{{ counts.replies }}</b><span>Review replies waiting for approval</span></a>
+  <a class="card stat" href="/clients"><b>{{ counts.changes }}</b><span>Unapproved profile changes detected</span></a>
+</div>
+<div class="grid grid-2">
+  <div class="card">
+    <h2>Recent scans</h2>
+    {% if recent_scans %}
+    <table>
+      <tr><th>Business</th><th>Keyword</th><th>Status</th><th class="num">Avg rank</th></tr>
+      {% for s in recent_scans %}{% set st = s.stats | loads({}) %}
+      <tr><td><a href="/rank/{{ s.id }}">{{ s.business or "—" }}</a></td><td>{{ s.keyword }}</td>
+        <td><span class="badge {{ 'good' if s.status == 'completed' else 'bad' if s.status == 'failed' else 'info' }}">{{ s.status }}</span></td>
+        <td class="num">{{ st.avg_rank if st.avg_rank is not none else "—" }}</td></tr>
+      {% endfor %}
+    </table>
+    {% else %}<div class="empty">No scans yet. <a href="/rank/new">Run your first heat map.</a></div>{% endif %}
+  </div>
+  <div class="card">
+    <h2>Open tasks</h2>
+    {% if tasks %}
+    <table>{% for t in tasks %}<tr><td>{{ t.title }}</td><td class="hint">{{ (t.due_at or "")[:16].replace("T", " ") }}</td></tr>{% endfor %}</table>
+    {% else %}<div class="empty">Nothing due.</div>{% endif %}
+  </div>
+</div>
+{% endblock %}

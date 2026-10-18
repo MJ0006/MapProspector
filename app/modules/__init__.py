@@ -1,0 +1,8 @@
+"""Feature modules. Each exposes `router` from its routes.py."""
+import importlib
+
+MODULES = []
+
+
+def routers():
+    return [importlib.import_module(f"app.modules.{m}.routes").router for m in MODULES]
