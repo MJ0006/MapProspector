@@ -62,7 +62,6 @@ Every module switches itself off when its key is missing. **Settings** shows wha
 | `GOOGLE_API_KEY` | Lead search, Places-mode heat maps, profile-lock monitoring, PageSpeed in audits | Enable *Places API (New)* (and *PageSpeed Insights API*) in Google Cloud; billed per request by Google |
 | `DATAFORSEO_LOGIN` / `_PASSWORD` | True per-point Maps / local pack / organic heat maps, keyword volume/CPC/difficulty, AI Overview grid | Billed per task by DataForSEO; this is what LeadSnap's data looks like |
 | `GOOGLE_OAUTH_CLIENT_ID` / `_SECRET` | Publishing posts, review replies, photos, profile reverts; GBP insights; Search Console | Business Profile API access needs Google's approval; Search Console doesn't. Redirect URI: `http://127.0.0.1:8000/gbp/oauth/callback` |
-| `OPENAI_API_KEY`, `PERPLEXITY_API_KEY`, `GEMINI_API_KEY`, `XAI_API_KEY` | Extra engines in AI visibility | Model names can be changed with `OPENAI_MODEL`, `PERPLEXITY_MODEL`, `GEMINI_MODEL`, `XAI_MODEL` |
 | `SMTP_*` | Sending approved emails and reports | Without it, approved emails wait in the Outbox for you to copy |
 
 **With no keys at all**, the CRM, forms, automations, client vaults, reports and content tools all work. Heat maps and lead search run on clearly labelled **demo data**.
@@ -82,7 +81,7 @@ Drafts, *Ask* and citation lookups use your own subscriptions through each compa
 
 The first ready platform answers. If it reports a usage limit, it's skipped until its reset time (or for an hour). If it isn't signed in, it's skipped for 30 minutes. The next platform answers instead, and the notice bar says so, for example *"Claude usage limit reached: using ChatGPT until 15:00"*. Every switch is in the Journal.
 
-Citation lookups need web search, so they skip Ollama. The *Ask* page reads your data through **read-only** tools, so no platform can start scans or change anything. *AI visibility* measures each engine's own answers, so it never falls back.
+Citation lookups need web search, so they skip Ollama. The *Ask* page reads your data through **read-only** tools, so no platform can start scans or change anything. *AI visibility* asks Claude, ChatGPT and Gemini through these same subscriptions (no API keys). It measures each engine's own answers, so it never falls back.
 
 If a tool is installed somewhere unusual, set `CLAUDE_PATH`, `CODEX_PATH` or `GEMINI_PATH` in `.env`. Ollama on another address: `OLLAMA_HOST`.
 

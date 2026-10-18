@@ -83,8 +83,9 @@ Recon date: 2026-10-18. Every LeadSnap feature found by running **rea** (`inspec
 - **MapProspector backend:**
   - The question set is generated per category and city.
   - Engine adapters:
-    - **Claude**, via `claude -p` with web search on your subscription. Works out of the box.
-    - **OpenAI, Perplexity, Gemini and Grok:** optional API keys.
+    - **Claude, ChatGPT and Gemini**, each through your own subscription with web search on (Claude Code, Codex CLI,
+      Gemini CLI; `app/providers/ai_engines.py`). No API keys. Each engine measures only itself, never a fallback.
+    - Perplexity and Grok have no subscription CLI, so they aren't offered.
     - **Google AI Overviews:** optional, via a SERP API.
   - The same matrix, share-of-voice and sources maths as LeadSnap.
 - **Brain:**
@@ -269,7 +270,7 @@ Recon date: 2026-10-18. Every LeadSnap feature found by running **rea** (`inspec
 1. **Heat-map data source:**
    - **Places API (New):** cheaper per call with your Google key, but approximate.
    - **DataForSEO Maps SERP:** what LeadSnap appears to use. Real per-point SERP, top 20, about $0.10 per 7×7 scan. It also gives keyword volume, CPC and difficulty.
-2. **Optional paid modules to enable now or later:** Twilio (calls/SMS), the GBP API (you'd need to apply to Google), and OpenAI/Perplexity/Gemini/Grok keys for AI visibility.
+2. **Optional paid modules to enable now or later:** Twilio (calls/SMS), the GBP API (you'd need to apply to Google).
 
 ---
 

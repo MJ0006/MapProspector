@@ -51,7 +51,7 @@ def _run(rid: int) -> dict:
 def aivis_view(request: Request, rid: int):
     r = _run(rid)
     return render(request, "aivis/report.html", title=f"AI visibility: {r['business_name']}", r=r,
-                  report=db.loads(r["report"], None), engine_names=ai_engines.ENGINES)
+                  report=db.loads(r["report"], None), engine_names=ai_engines.LABELS)
 
 
 @router.post("/aivis/{rid}/share")
@@ -68,4 +68,4 @@ def aivis_shared(request: Request, token: str):
     if not r:
         raise HTTPException(404)
     return render(request, "aivis/share.html", title="AI visibility report", r=r,
-                  report=db.loads(r["report"], None), engine_names=ai_engines.ENGINES)
+                  report=db.loads(r["report"], None), engine_names=ai_engines.LABELS)

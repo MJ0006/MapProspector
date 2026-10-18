@@ -48,19 +48,9 @@ def test_interrupted_report_send_finishes_once_per_recipient(client):
     assert db.one("SELECT status FROM report_runs WHERE id = ?", run_id)["status"] == "sent"
 
 
-def test_gemini_key_is_never_in_the_url_or_stored_error(monkeypatch):
-    monkeypatch.setenv("GEMINI_API_KEY", "AIzaSECRETKEY")
-    seen = []
-
-    def handler(request):
-        seen.append(request)
-        return httpx.Response(400, json={"error": "bad"})
-    http = httpx.Client(transport=httpx.MockTransport(handler))
-    with pytest.raises(httpx.HTTPStatusError) as exc:
-        ai_engines.ask("gemini", "q", client=http)
-    assert "AIzaSECRETKEY" not in str(seen[0].url) and seen[0].headers["x-goog-api-key"] == "AIzaSECRETKEY"
-    assert "http" not in aivis.safe_error(exc.value)
+def test_engine_errors_are_stored_without_urls_or_keys():
     assert "SECRET" not in aivis.safe_error(ValueError("GET https://x.test/?key=SECRET failed; key=SECRET"))
+    assert "http" not in aivis.safe_error(ValueError("error at https://api.example.com/v1?token=abc"))
 
 
 def test_two_clients_with_the_same_name_get_their_own_vault(client):
@@ -136,21 +126,14 @@ def test_aivis_parsing():
     assert not aivis.same_business("The Plumber", "Joe the Plumber")
 
 
-def test_grok_uses_responses_web_search_and_gemini_sources_are_real_domains(monkeypatch):
-    monkeypatch.setenv("XAI_API_KEY", "xai-k")
-    monkeypatch.setenv("GEMINI_API_KEY", "g-k")
-
-    def handler(request):
-        if "x.ai" in request.url.host:
-            assert request.url.path == "/v1/responses"
-            assert b"web_search" in request.content
-            return httpx.Response(200, json={"output": [{"content": [{"type": "output_text", "text": "Acme",
-                                  "annotations": [{"url": "https://acme.com"}]}]}]})
-        return httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text": "Acme"}]}, "groundingMetadata": {
-            "groundingChunks": [{"web": {"uri": "https://vertexaisearch.cloud.google.com/r/1", "title": "acme.com"}}]}}]})
-    http = httpx.Client(transport=httpx.MockTransport(handler))
-    assert ai_engines.ask("grok", "q", client=http)["sources"] == ["https://acme.com"]
-    assert ai_engines.ask("gemini", "q", client=http)["sources"] == ["https://acme.com"]
+def test_ai_visibility_uses_each_subscription_with_web_search_and_no_fallback(monkeypatch):
+    calls = []
+    monkeypatch.setattr(ai, "ask", lambda prompt, **k: calls.append(k) or "Acme https://acme.com\n{}")
+    for engine, platform in [("claude", "claude"), ("chatgpt", "codex"), ("gemini", "gemini")]:
+        assert ai_engines.ask(engine, "q")["sources"] == ["https://acme.com"]
+        assert calls[-1]["only"] == platform and calls[-1]["web"] is True
+    assert set(ai_engines.ENGINES) == {"claude", "chatgpt", "gemini"}
+    assert ai_engines.LABELS["grok"] == "Grok"  # older checks still show their engine names
 
 
 def test_extract_json_prefers_the_real_object_over_a_footnote():
@@ -259,3 +242,27 @@ def test_ollama_host_ipv6_and_https(monkeypatch):
     assert ollama.base_url() == "http://[::1]:11434"
     monkeypatch.setenv("OLLAMA_HOST", "https://ollama.example.com")
     assert ollama.base_url() == "https://ollama.example.com:443"
+
+
+def test_old_checks_with_retired_engines_still_render_and_only_ready_platforms_run(client, monkeypatch):
+    rows = [{"engine": "grok", "prompt": "q", "text": "1. Acme Plumbing", "sources": [],
+             "businesses": [{"name": "Acme Plumbing", "reason": ""}]}]
+    report = aivis.build_report({"name": "Acme Plumbing", "website": None}, rows)
+    rid = db.insert("aivis_runs", business_name="Acme Plumbing", city="Austin", category="plumber", status="completed",
+                    report=report, created_at=db.now())
+    assert "Grok" in client.get(f"/aivis/{rid}").text
+    monkeypatch.setattr(ai, "candidates", lambda **k: [object()] if k.get("only") == "codex" else [])
+    monkeypatch.setattr(ai.PLATFORMS["codex"], "signed_in", lambda: True)
+    assert ai_engines.available() == ["chatgpt"]
+
+
+def test_signed_out_platforms_are_not_offered_and_redirect_sources_are_dropped(monkeypatch):
+    monkeypatch.setattr(ai, "candidates", lambda **k: [object()])
+    monkeypatch.setattr(ai.PLATFORMS["gemini"], "signed_in", lambda: False)
+    monkeypatch.setattr(ai.PLATFORMS["codex"], "signed_in", lambda: None)  # unknown: still offered
+    monkeypatch.setattr(ai.PLATFORMS["claude"], "signed_in", lambda: True)
+    assert ai_engines.available() == ["claude", "chatgpt"]
+    text = ("Sources: https://vertexaisearch.cloud.google.com/grounding-api-redirect/AbC https://acme.com/about "
+            "https://www.google.com/url?q=https://x.com\n{}")
+    monkeypatch.setattr(ai, "ask", lambda prompt, **k: text)
+    assert ai_engines.ask("gemini", "q")["sources"] == ["https://acme.com/about"]

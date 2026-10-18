@@ -31,10 +31,6 @@ def modules() -> dict[str, bool]:
         "dataforseo": bool(env("DATAFORSEO_LOGIN") and env("DATAFORSEO_PASSWORD")),
         "google_oauth": bool(env("GOOGLE_OAUTH_CLIENT_ID") and env("GOOGLE_OAUTH_CLIENT_SECRET")),
         "claude": claude_exe() is not None,
-        "openai": bool(env("OPENAI_API_KEY")),
-        "perplexity": bool(env("PERPLEXITY_API_KEY")),
-        "gemini": bool(env("GEMINI_API_KEY")),
-        "grok": bool(env("XAI_API_KEY")),
         "smtp": bool(env("SMTP_HOST")),
     }
 

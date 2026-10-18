@@ -21,6 +21,8 @@ log = Path(os.environ["FAKE_LOG"])
 with log.open("a", encoding="utf-8") as f:
     f.write(json.dumps({"name": name, "args": sys.argv[1:], "prompt": prompt, "cwd": os.getcwd()}) + "\\n")
 mode = os.environ.get("FAKE_MODE_" + name.upper(), "ok")
+if name == "codex" and sys.argv[1:3] == ["login", "status"]:
+    print("Logged in using ChatGPT"); sys.exit(0)
 reply = name + " says hello"
 if mode == "limit":
     print(os.environ.get("FAKE_LIMIT_TEXT", "usage limit reached"), file=sys.stderr); sys.exit(1)
@@ -225,3 +227,15 @@ def test_pages_enable_ai_buttons_for_any_ready_platform(client, monkeypatch):
     ask = client.get("/ask").text
     assert "local models can't read app data" in ask and "disabled>Ask</button>" in ask
     assert "Automatic checks need an AI platform with web search" in client.get("/citations").text
+
+
+def test_ai_visibility_check_asks_each_subscription_cli_itself(fakes):
+    from app.modules.aivis import engine
+    rid = db.insert("aivis_runs", business_name="Acme Plumbing", city="Austin", category="plumber", status="queue",
+                    created_at=db.now())
+    engine.run(rid)
+    calls = [c for c in fakes() if c["args"][:2] != ["login", "status"]]
+    assert sorted({c["name"] for c in calls}) == ["claude", "codex", "gemini"] and len(calls) == 15  # 5 questions each
+    assert all('web_search="live"' in c["args"] for c in calls if c["name"] == "codex")
+    report = db.loads(db.one("SELECT report FROM aivis_runs WHERE id = ?", rid)["report"])
+    assert {e["name"] for e in report["engines"]} == {"Claude", "ChatGPT", "Gemini"}

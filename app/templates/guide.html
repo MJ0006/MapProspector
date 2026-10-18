@@ -66,7 +66,8 @@
   {% endfor %}
   <p class="hint">Signing in happens in each company's own tool; MapProspector never sees your passwords. Every platform runs read-only
     and can't change your data. Citation lookups need web search, so they skip Ollama; Ask reads your data, so it uses Claude, ChatGPT or Gemini.
-    AI visibility always measures each engine itself and never falls back.</p>
+    AI visibility asks Claude, ChatGPT and Gemini through these same subscriptions (no API keys); each engine measures only itself
+    and never falls back.</p>
   {{ shot("settings-ai", "Settings → AI platforms: order, status, Sign in, Try again now, local model") }}
 </section>
 
