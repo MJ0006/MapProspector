@@ -258,7 +258,7 @@ Recon date: 2026-10-18. Every LeadSnap feature found by running **rea** (`inspec
 ## G. Added from local-seo-brain (not in LeadSnap)
 - **G1. Prospect website audit:** technical, CTR and core-30 content checks. `prompts/technical-audit-prompt`, `ctr-audit-prompt`, `prompt-core-30-content-audit`, `flows/Property Audit Workflow`.
 - **G2. Content tools:** title, meta, schema, homepage, service page and blog drafts. `prompt-generating-a-title-tag`, `prompt-generating-a-meta-description`, `schema-prompt-1`, `ai-homepage-rewrite-prompt`, `blog-post-*`.
-- **G3. Evidence-cited client vault per client:** opens in Obsidian.
+- **G3. Evidence-cited client vault per client:** opens in Obsidian. The client's **Brain** tab runs `guide_next_action.py` (next step and notes past review), `lint_vault.py` (vault health) and `generate_vault_visuals.py` (relationship map), and shows each evidence type's age. Content tools list all 37 `wiki/prompts`. (`coverage_matrix.py` and `freshness.py` check the Brain's own knowledge base, not client vaults, so they aren't run per client.)
 
 ## Out of scope / changed
 - **Review gating (B3):** replaced with a compliant review-request flow.

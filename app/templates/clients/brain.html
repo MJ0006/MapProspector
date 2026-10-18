@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block content %}
+{% include "clients/_tabs.html" %}
+<p class="hint">Local SEO Brain's own checks on this client's vault (<code>{{ vault }}</code>), run each time you open this page.</p>
+{% if error %}<div class="notice warn">Local SEO Brain could not check this vault: {{ error }}</div>{% endif %}
+<div class="grid grid-2">
+  <div>
+    <div class="card">
+      <h2>Next action</h2>
+      {% set missing = evidence | rejectattr("date") | list %}
+      {% set stale = evidence | selectattr("stale") | list %}
+      {% if missing %}<p><b>Add evidence:</b> {{ missing | map(attribute="label") | join(", ") }}. Upload it on <a href="/clients/{{ co.id }}">Overview &amp; plan</a>, then click "Update plan".</p>{% endif %}
+      {% if stale %}<p><b>Refresh evidence:</b> {{ stale | map(attribute="label") | join(", ") }} {{ "is" if stale | length == 1 else "are" }} older than {{ max_days }} days. Upload a new export so the plan reflects the profile as it is now.</p>{% endif %}
+      {% if action.steps %}
+      <p class="hint" style="margin-bottom:4px">From the vault's guide:</p>
+      <ol style="margin-top:0">{% for s in action.steps %}<li>{{ s }}</li>{% endfor %}</ol>
+      {% endif %}
+      {% if due %}
+      <div class="notice warn" style="margin-top:8px">Local SEO Brain asks for these reference notes to be reviewed before new recommendations:
+        they are the Brain's copies of Google guidance and prompts, dated when this vault was made. Check Google's current guidance for anything time-sensitive.</div>
+      {% for folder, names in due.items() %}
+      <details><summary class="hint">{{ folder }} ({{ names | length }})</summary><div class="hint">{{ names | join(", ") }}</div></details>
+      {% endfor %}
+      {% endif %}
+      {% if not (missing or stale or action.steps or due or error) %}<p>Nothing due. Keep evidence current and update the plan after each export.</p>{% endif %}
+    </div>
+    <div class="card">
+      <h2>Evidence in the vault</h2>
+      <table>
+        <tr><th>Evidence</th><th>Newest import</th><th>Age</th></tr>
+        {% for e in evidence %}
+        <tr><td>{{ e.label }}</td><td>{{ e.date or "none yet" }}</td>
+          <td>{% if e.days is not none %}<span class="badge {{ 'warn' if e.stale else 'good' }}">{{ e.days }} days</span>{% else %}<span class="badge">missing</span>{% endif %}</td></tr>
+        {% endfor %}
+      </table>
+      <p class="hint" style="margin-top:6px">Age counts from the day the file was imported. The {{ max_days }}-day reminder is MapProspector's, not a Google rule.</p>
+    </div>
+  </div>
+  <div>
+    <div class="card">
+      <h2>Vault health</h2>
+      {% if health %}
+      <p>{% if health.ok %}<span class="badge good">passed</span>{% else %}<span class="badge bad">needs fixing</span>{% endif %}
+        <span class="hint">Brain lint: frontmatter on every note, links that resolve, every note linked in and out.</span></p>
+      {% if not health.ok %}<pre style="white-space:pre-wrap;font-size:12px">{{ health.lines | join("\n") }}</pre>
+        <p class="hint">Usually caused by editing or deleting notes by hand in Obsidian. Fix the listed notes, then reopen this page.</p>{% endif %}
+      {% endif %}
+    </div>
+    <div class="card">
+      <h2>Content tools</h2>
+      <p>All {{ prompt_count }} Local SEO Brain prompts: profile, website, schema, content plans, audits and AI search.</p>
+      <a class="btn" href="/tools?company_id={{ co.id }}">Open Content tools for {{ co.name }}</a>
+    </div>
+    <div class="card">
+      <h2>How the vault fits together</h2>
+      <a href="/clients/{{ co.id }}/brain/map.svg" target="_blank" title="Open full size"><img src="/clients/{{ co.id }}/brain/map.svg" alt="Local SEO Brain relationship map" style="width:100%;height:auto;background:#fff;border-radius:6px"></a>
+    </div>
+  </div>
+</div>
+{% endblock %}
