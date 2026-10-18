@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div><h1>{{ a.name if a else "New automation" }}</h1>
+    <p>Variables: <code>{{ "{{first_name}}" }}</code> <code>{{ "{{business_name}}" }}</code> <code>{{ "{{company_name}}" }}</code> <code>{{ "{{review_link}}" }}</code> <code>{{ "{{custom.field}}" }}</code></p></div>
+  <a class="btn" href="/crm/automations">Back</a>
+</div>
+<form method="post" action="/crm/automations/{{ a.id if a else 0 }}" id="autoform" class="card">
+  <div class="row">
+    <div class="field" style="flex:2"><label>Name</label><input type="text" name="name" value="{{ a.name if a else '' }}" required></div>
+    <div class="field"><label>Trigger</label><select name="trigger" id="trigger" onchange="syncTrigger()">
+      {% for k, v in triggers.items() %}<option value="{{ k }}" {% if a and a.trigger == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></div>
+    <div class="field"><label><input type="checkbox" name="active" value="1" {% if not a or a.active %}checked{% endif %}> Active</label></div>
+  </div>
+  <div class="row" id="cfg-stage" hidden>
+    <div class="field"><label>Stage</label><select id="cfg_stage"><option value="">Any stage</option>
+      {% for p in pipelines %}{% for s in p.stages %}<option value="{{ s.id }}">{{ p.name }} → {{ s.name }}</option>{% endfor %}{% endfor %}</select></div>
+  </div>
+  <div class="row" id="cfg-field" hidden>
+    <div class="field"><label>Field</label><select id="cfg_field"><option value="">Any</option>{% for f in fields %}<option>{{ f }}</option>{% endfor %}</select></div>
+    <div class="field"><label>New value (optional)</label><input type="text" id="cfg_value"></div>
+  </div>
+  <h2 style="margin-top:12px">Filters <span class="hint">(all must match)</span></h2>
+  <div id="filters"></div>
+  <button type="button" class="btn-sm" onclick="addFilter()">+ Filter</button>
+  <h2 style="margin-top:16px">Actions <span class="hint">(run in order)</span></h2>
+  <div id="actions"></div>
+  <div class="actions"><select id="newaction">{% for k, v in actions.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select>
+    <button type="button" class="btn-sm" onclick="addAction({type: newaction.value})">+ Add action</button></div>
+  <input type="hidden" name="trigger_config" id="trigger_config">
+  <input type="hidden" name="filters" id="filters_json">
+  <input type="hidden" name="actions" id="actions_json">
+  <div style="margin-top:16px"><button class="primary" type="submit">Save automation</button></div>
+</form>
+{% if runs %}
+<div class="card">
+  <h2>History</h2>
+  <table><tr><th>Contact</th><th>Status</th><th>Log</th><th></th></tr>
+  {% for r in runs %}
+  <tr><td>{% if r.contact_id %}<a href="/crm/contacts/{{ r.contact_id }}">{{ r.business_name or r.first_name }}</a>{% endif %}</td>
+    <td><span class="badge">{{ r.status }}</span></td>
+    <td class="hint">{% for l in r.log | loads([]) %}<div>{{ l }}</div>{% endfor %}</td>
+    <td>{% if r.status in ["running", "waiting"] %}<form method="post" action="/crm/runs/{{ r.id }}/stop"><button class="btn-sm">Stop</button></form>{% endif %}</td></tr>
+  {% endfor %}</table>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+const FIELDS = {{ fields | tojson }};
+const ACTIONS = {{ actions | tojson }};
+const STAGES = [{% for p in pipelines %}{% for s in p.stages %}{id: {{ s.id }}, name: {{ (p.name ~ " → " ~ s.name) | tojson }}},{% endfor %}{% endfor %}];
+const QUESTIONNAIRES = {{ questionnaires | tojson }};
+const COMPANIES = {{ companies | tojson }};
+const OPS = {eq: "is", neq: "is not", contains: "contains (any of, comma separated)", empty: "is empty", not_empty: "is not empty"};
+const PARAMS = {
+  send_email: [["subject", "text", "Subject"], ["body", "textarea", "Message"]],
+  send_sms: [["body", "textarea", "Text message"]],
+  wait: [["minutes", "number", "Minutes"]],
+  create_task: [["title", "text", "Task title"], ["due_hours", "number", "Due in hours"]],
+  update_field: [["field", "field", "Field"], ["value", "text", "Value"]],
+  add_tag: [["tag", "text", "Tag"]],
+  move_deal: [["stage_id", "stage", "Stage"]],
+  condition: [["field", "field", "Field"], ["op", "op", "Operator"], ["value", "text", "Value"]],
+  end_if_review_clicked: [],
+  send_questionnaire: [["questionnaire_id", "questionnaire", "Questionnaire"], ["subject", "text", "Subject"]],
+  send_review_request: [["company_id", "company", "Client (blank = contact's company)"], ["body", "textarea", "Message (blank = default, every customer gets the same Google review link)"]],
+};
+function sel(options, value) {
+  const s = document.createElement("select");
+  options.forEach(([v, l]) => { const o = new Option(l, v); if (String(v) === String(value ?? "")) o.selected = true; s.add(o); });
+  return s;
+}
+function input(kind, name, value) {
+  let el;
+  if (kind === "textarea") { el = document.createElement("textarea"); el.value = value ?? ""; }
+  else if (kind === "field") el = sel(FIELDS.map(f => [f, f]), value);
+  else if (kind === "op") el = sel(Object.entries(OPS), value);
+  else if (kind === "stage") el = sel(STAGES.map(s => [s.id, s.name]), value);
+  else if (kind === "questionnaire") el = sel(QUESTIONNAIRES.map(q => [q.id, q.name]), value);
+  else if (kind === "company") el = sel([["", "—"], ...COMPANIES.map(c => [c.id, c.name])], value);
+  else { el = document.createElement("input"); el.type = kind; el.value = value ?? ""; }
+  el.dataset.key = name; return el;
+}
+function addFilter(f = {}) {
+  const row = document.createElement("div"); row.className = "row filter";
+  [["field", "field"], ["op", "op"], ["value", "text"]].forEach(([k, kind]) => {
+    const w = document.createElement("div"); w.className = "field"; w.appendChild(input(kind, k, f[k])); row.appendChild(w);
+  });
+  const rm = document.createElement("button"); rm.type = "button"; rm.className = "btn-sm"; rm.textContent = "✕"; rm.onclick = () => row.remove();
+  row.appendChild(rm); filters.appendChild(row);
+}
+function addAction(a) {
+  const card = document.createElement("div"); card.className = "card action"; card.dataset.type = a.type;
+  card.innerHTML = `<div class="actions" style="justify-content:space-between"><b></b><span><button type="button" class="btn-sm up">↑</button> <button type="button" class="btn-sm rm">✕</button></span></div>`;
+  card.querySelector("b").textContent = ACTIONS[a.type];
+  (PARAMS[a.type] || []).forEach(([k, kind, label]) => {
+    const w = document.createElement("div"); w.className = "field"; const l = document.createElement("label"); l.textContent = label;
+    w.appendChild(l); w.appendChild(input(kind, k, a[k])); card.appendChild(w);
+  });
+  card.querySelector(".rm").onclick = () => card.remove();
+  card.querySelector(".up").onclick = () => { if (card.previousElementSibling) card.parentNode.insertBefore(card, card.previousElementSibling); };
+  actions.appendChild(card);
+}
+function syncTrigger() {
+  document.getElementById("cfg-stage").hidden = trigger.value !== "deal_stage";
+  document.getElementById("cfg-field").hidden = trigger.value !== "field_updated";
+}
+autoform.addEventListener("submit", () => {
+  const cfg = {};
+  if (trigger.value === "deal_stage" && cfg_stage.value) cfg.stage_id = +cfg_stage.value;
+  if (trigger.value === "field_updated") { if (cfg_field.value) cfg.field = cfg_field.value; if (cfg_value.value) cfg.value = cfg_value.value; }
+  trigger_config.value = JSON.stringify(cfg);
+  filters_json.value = JSON.stringify([...document.querySelectorAll(".filter")].map(r => Object.fromEntries([...r.querySelectorAll("[data-key]")].map(e => [e.dataset.key, e.value]))));
+  actions_json.value = JSON.stringify([...document.querySelectorAll(".action")].map(c => ({type: c.dataset.type, ...Object.fromEntries([...c.querySelectorAll("[data-key]")].map(e => [e.dataset.key, e.value]))})));
+});
+const existing = {cfg: {{ (a.trigger_config | loads({})) | tojson if a else "{}" }}, filters: {{ (a.filters | loads([])) | tojson if a else "[]" }}, actions: {{ (a.actions | loads([])) | tojson if a else "[]" }}};
+if (existing.cfg.stage_id) cfg_stage.value = existing.cfg.stage_id;
+if (existing.cfg.field) cfg_field.value = existing.cfg.field;
+if (existing.cfg.value) cfg_value.value = existing.cfg.value;
+existing.filters.forEach(addFilter); existing.actions.forEach(addAction); syncTrigger();
+</script>
+{% endblock %}

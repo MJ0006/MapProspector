@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ c.business_name or ((c.first_name or "") ~ " " ~ (c.last_name or "")) or "Contact" }}</h1>
+    <p>{{ c.source }} · created {{ (c.created_at or "")[:10] }}{% if c.is_spam %} · <span class="badge bad">spam</span>{% endif %}</p>
+  </div>
+  <div class="actions">
+    {% if place %}
+      <a class="btn" href="/rank/new?place_id={{ place.id }}">Heat map</a>
+      <form method="post" action="/audit/run"><input type="hidden" name="place_id" value="{{ place.id }}"><button>Run website audit</button></form>
+      <a class="btn" href="/aivis/new?place_id={{ place.id }}">AI visibility</a>
+    {% endif %}
+    <form method="post" action="/clients/convert"><input type="hidden" name="contact_id" value="{{ c.id }}"><button class="primary">Convert to client</button></form>
+  </div>
+</div>
+<div class="grid grid-2">
+  <div>
+    <form class="card" method="post" action="/crm/contacts/{{ c.id }}">
+      <h2>Details</h2>
+      <div class="row">
+        <div class="field"><label>Business</label><input type="text" name="business_name" value="{{ c.business_name or '' }}"></div>
+        <div class="field"><label>Status</label><select name="status">{% for s in statuses %}<option {% if c.status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>First name</label><input type="text" name="first_name" value="{{ c.first_name or '' }}"></div>
+        <div class="field"><label>Last name</label><input type="text" name="last_name" value="{{ c.last_name or '' }}"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>Email</label><input type="email" name="email" value="{{ c.email or '' }}"></div>
+        <div class="field"><label>Phone</label><input type="tel" name="phone" value="{{ c.phone or '' }}"></div>
+      </div>
+      <div class="field"><label>Website</label><input type="url" name="website" value="{{ c.website or '' }}"></div>
+      <div class="field"><label>Address</label><input type="text" name="address" value="{{ c.address or '' }}"></div>
+      <div class="row">
+        <div class="field"><label>Company / client</label><select name="company_id"><option value="">—</option>{% for co in companies %}<option value="{{ co.id }}" {% if c.company_id == co.id %}selected{% endif %}>{{ co.name }}</option>{% endfor %}</select></div>
+        <div class="field"><label>Tags (comma separated)</label><input type="text" name="tags" value="{{ (c.tags | loads([])) | join(', ') }}"></div>
+      </div>
+      <div class="field"><label><input type="checkbox" name="do_not_contact" value="1" {% if c.do_not_contact %}checked{% endif %}> Do not contact (unsubscribed)</label></div>
+      {% set custom = c.custom | loads({}) %}{% if custom %}
+      <h3>Other fields</h3><table>{% for k, v in custom.items() %}<tr><td class="hint">{{ k }}</td><td>{{ v }}</td></tr>{% endfor %}</table>
+      {% endif %}
+      <div class="actions" style="margin-top:12px"><button class="primary" type="submit">Save</button></div>
+    </form>
+    {% if place %}
+    <div class="card">
+      <h2>Google listing</h2>
+      <table>
+        <tr><td class="hint">Category</td><td>{{ place.primary_category or "—" }}</td></tr>
+        <tr><td class="hint">Rating</td><td>{{ place.rating or "—" }} ({{ place.review_count or 0 }} reviews)</td></tr>
+        <tr><td class="hint">Address</td><td>{{ place.address or "—" }}</td></tr>
+        <tr><td class="hint">Maps</td><td>{% if place.maps_url %}<a href="{{ place.maps_url }}" target="_blank" rel="noopener">open</a>{% else %}—{% endif %}</td></tr>
+      </table>
+    </div>
+    {% endif %}
+    {% if audits or scans %}
+    <div class="card">
+      <h2>Prospect evidence</h2>
+      {% for a in audits %}<p><a href="/audit/{{ a.id }}">Website audit {{ (a.created_at or "")[:10] }}</a> · {{ a.issues }} issues found</p>{% endfor %}
+      {% for s in scans %}{% set st = s.stats | loads({}) %}<p><a href="/rank/{{ s.id }}">Heat map "{{ s.keyword }}"</a> · avg rank {{ st.avg_rank_all if st else "—" }} · {{ (s.created_at or "")[:10] }}</p>{% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  <div>
+    <div class="card">
+      <h2>Deals</h2>
+      {% for d in deals %}<p><a href="/crm/pipeline?pipeline_id={{ d.pipeline_id }}">{{ d.title }}</a> · {{ d.pipeline }} → <b>{{ d.stage }}</b>{% if d.value %} · ${{ d.value }}{% endif %}</p>{% endfor %}
+      <form method="post" action="/crm/deals" class="row">
+        <input type="hidden" name="contact_id" value="{{ c.id }}"><input type="hidden" name="back" value="/crm/contacts/{{ c.id }}">
+        <div class="field"><input type="text" name="title" placeholder="Deal title (e.g. Local SEO retainer)"></div>
+        <div class="field"><input type="number" name="value" placeholder="Value / month"></div>
+        <div class="field"><select name="pipeline_id">{% for p in pipelines %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}</select></div>
+        <div class="field"><button type="submit">Add deal</button></div>
+      </form>
+    </div>
+    <div class="card">
+      <h2>Message</h2>
+      <p class="hint">Goes to the outbox. {% if c.source in ["prospecting", "import", "manual"] %}This is a cold contact, so you approve it before it's sent.{% endif %}</p>
+      <form method="post" action="/crm/contacts/{{ c.id }}/message">
+        <div class="row"><div class="field"><select name="channel"><option value="email">Email</option><option value="sms">SMS</option></select></div>
+          <div class="field" style="flex:3"><input type="text" name="subject" placeholder="Subject"></div></div>
+        <div class="field"><textarea name="body" required placeholder="Write your message"></textarea></div>
+        <button type="submit">Add to outbox</button>
+      </form>
+    </div>
+    <div class="card">
+      <h2>Tasks</h2>
+      {% for t in tasks %}
+      <form method="post" action="/crm/tasks/{{ t.id }}/done" class="actions" style="margin-bottom:6px">
+        <input type="hidden" name="back" value="/crm/contacts/{{ c.id }}">
+        <button class="btn-sm" type="submit">{{ "↺" if t.done else "✓" }}</button>
+        <span {% if t.done %}style="text-decoration:line-through" class="hint"{% endif %}>{{ t.title }}</span>
+        <span class="hint">{{ (t.due_at or "")[:16].replace("T", " ") }}</span>
+      </form>
+      {% endfor %}
+      <form method="post" action="/crm/tasks" class="row">
+        <input type="hidden" name="contact_id" value="{{ c.id }}"><input type="hidden" name="back" value="/crm/contacts/{{ c.id }}">
+        <div class="field" style="flex:3"><input type="text" name="title" placeholder="Follow up call" required></div>
+        <div class="field"><input type="datetime-local" name="due_at"></div>
+        <div class="field"><button type="submit">Add task</button></div>
+      </form>
+    </div>
+    <div class="card">
+      <h2>Automations</h2>
+      {% for r in runs %}<p>{{ r.name }} · <span class="badge">{{ r.status }}</span> <span class="hint">{{ (r.updated_at or "")[:16] }}</span></p>{% endfor %}
+      {% if autos %}
+      <form method="post" action="/crm/contacts/{{ c.id }}/automation" class="row">
+        <div class="field"><select name="automation_id">{% for a in autos %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}</select></div>
+        <div class="field"><button type="submit">Start</button></div>
+      </form>{% else %}<p class="hint">No active automations.</p>{% endif %}
+    </div>
+    <div class="card">
+      <h2>Timeline</h2>
+      <form method="post" action="/crm/contacts/{{ c.id }}/note" class="row">
+        <div class="field"><select name="type"><option value="note">Note</option><option value="call">Call</option><option value="email">Email</option><option value="sms">SMS</option></select></div>
+        <div class="field" style="flex:4"><input type="text" name="body" placeholder="Log a note or call" required></div>
+        <div class="field"><button type="submit">Log</button></div>
+      </form>
+      {% for a in activities %}<p><span class="badge">{{ a.type }}</span> {{ a.body }} <span class="hint">{{ (a.created_at or "")[:16].replace("T", " ") }}</span></p>{% endfor %}
+    </div>
+    <div class="actions">
+      <form method="post" action="/crm/contacts/{{ c.id }}/spam"><input type="hidden" name="is_spam" value="{{ 0 if c.is_spam else 1 }}"><button class="btn-sm">{{ "Not spam" if c.is_spam else "Mark as spam" }}</button></form>
+      <form method="post" action="/crm/contacts/{{ c.id }}/delete" onsubmit="return confirm('Delete contact?')"><button class="btn-sm btn-danger">Delete contact</button></form>
+    </div>
+  </div>
+</div>
+{% endblock %}

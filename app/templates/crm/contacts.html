@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Contacts</h1><p>Leads from prospecting, forms and imports, plus your clients' contacts.</p></div>
+  <div class="actions">
+    <a class="btn" href="/crm/contacts?spam={{ 0 if f.spam else 1 }}">{{ "Hide spam" if f.spam else "Show spam" }}</a>
+  </div>
+</div>
+{% if request.query_params.get("imported") %}<div class="notice good">Imported {{ request.query_params.get("imported") }} contacts.</div>{% endif %}
+<form class="card row" method="get">
+  <div class="field"><label>Search</label><input type="text" name="q" value="{{ f.q }}"></div>
+  <div class="field"><label>Status</label><select name="status"><option value="">Any</option>{% for s in statuses %}<option {% if f.status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
+  <div class="field"><label>Source</label><select name="source"><option value="">Any</option>{% for s in ["prospecting","form","import","manual"] %}<option {% if f.source == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
+  <input type="hidden" name="spam" value="{{ f.spam }}">
+  <div class="field" style="align-self:end"><button type="submit">Filter</button></div>
+</form>
+<div class="card">
+  {% if rows %}
+  <div class="table-wrap"><table>
+    <tr><th>Business / name</th><th>Email</th><th>Phone</th><th>Source</th><th>Status</th><th>Tags</th><th>Last activity</th></tr>
+    {% for c in rows %}
+    <tr>
+      <td><a href="/crm/contacts/{{ c.id }}">{{ c.business_name or ((c.first_name or "") ~ " " ~ (c.last_name or "")) or "—" }}</a>
+        {% if c.business_name and c.first_name %}<div class="hint">{{ c.first_name }} {{ c.last_name or "" }}</div>{% endif %}
+        {% if c.is_spam %}<span class="badge bad">spam: {{ c.spam_reason }}</span>{% endif %}</td>
+      <td>{{ c.email or "" }}</td><td>{{ c.phone or "" }}</td><td><span class="badge">{{ c.source }}</span></td>
+      <td><span class="badge info">{{ c.status }}</span></td>
+      <td>{% for t in c.tags | loads([]) %}<span class="badge">{{ t }}</span> {% endfor %}</td>
+      <td class="hint">{{ c.last_activity_type or "" }} {{ (c.last_activity_at or "")[:10] }}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% else %}<div class="empty">No contacts. <a href="/leads/search">Find leads</a> or add one below.</div>{% endif %}
+</div>
+<div class="grid grid-2">
+  <form class="card" method="post" action="/crm/contacts">
+    <h2>Add contact</h2>
+    <div class="row">
+      <div class="field"><label>Business</label><input type="text" name="business_name"></div>
+      <div class="field"><label>First name</label><input type="text" name="first_name"></div>
+      <div class="field"><label>Last name</label><input type="text" name="last_name"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Email</label><input type="email" name="email"></div>
+      <div class="field"><label>Phone</label><input type="tel" name="phone"></div>
+      <div class="field"><label>Website</label><input type="url" name="website"></div>
+    </div>
+    <button class="primary" type="submit">Add</button>
+  </form>
+  <form class="card" method="post" action="/crm/contacts/import" enctype="multipart/form-data">
+    <h2>Import CSV</h2>
+    <p class="hint">Columns (any of): business_name, first_name, last_name, email, phone, website, address, tags. Imported contacts count as cold: messages to them always need your approval.</p>
+    <div class="field"><input type="file" name="file" accept=".csv" required></div>
+    <button type="submit">Import</button>
+  </form>
+</div>
+{% endblock %}

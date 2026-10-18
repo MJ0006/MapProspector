@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Tasks</h1><p>Follow-ups and reminders. Due tasks also show on the dashboard.</p></div>
+  <a class="btn" href="/crm/tasks?show={{ 'all' if show == 'open' else 'open' }}">{{ "Show done" if show == "open" else "Hide done" }}</a>
+</div>
+<div class="grid grid-2">
+  <div class="card">
+    <h2>List</h2>
+    {% for t in rows %}
+    <form method="post" action="/crm/tasks/{{ t.id }}/done" class="actions" style="margin-bottom:8px">
+      <button class="btn-sm" type="submit">{{ "↺" if t.done else "✓" }}</button>
+      <span {% if t.done %}style="text-decoration:line-through" class="hint"{% endif %}><b>{{ t.title }}</b></span>
+      {% if t.contact_id %}<a class="hint" href="/crm/contacts/{{ t.contact_id }}">{{ t.business_name or t.first_name }}</a>{% endif %}
+      <span class="hint">{{ (t.due_at or "no due date")[:16].replace("T", " ") }}</span>
+    </form>
+    {% else %}<div class="empty">No tasks.</div>{% endfor %}
+    <form method="post" action="/crm/tasks" style="margin-top:12px">
+      <div class="row">
+        <div class="field" style="flex:3"><input type="text" name="title" placeholder="New task" required></div>
+        <div class="field"><input type="datetime-local" name="due_at"></div>
+      </div>
+      <div class="row">
+        <div class="field"><select name="contact_id"><option value="">No contact</option>{% for c in contacts %}<option value="{{ c.id }}">{{ c.business_name or c.first_name }}</option>{% endfor %}</select></div>
+        <div class="field"><button class="primary" type="submit">Add task</button></div>
+      </div>
+    </form>
+  </div>
+  <div class="card">
+    <h2>Next 14 days</h2>
+    <table>
+      {% for d in days %}
+      <tr><td class="hint" style="width:110px">{{ d.date }}</td>
+        <td>{% for t in d.tasks %}<div>{{ "✓ " if t.done else "" }}{{ t.title }}</div>{% else %}<span class="hint">—</span>{% endfor %}</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div><h1>{{ current.name }}</h1><p>Drag deals between stages. Weighted open value: <b>${{ weighted }}</b> (value × stage win %).</p></div>
+  <div class="actions">
+    {% if pipelines | length > 1 %}<select onchange="location='/crm/pipeline?pipeline_id='+this.value">{% for p in pipelines %}<option value="{{ p.id }}" {% if p.id == current.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}</select>{% endif %}
+  </div>
+</div>
+<div class="kanban">
+  {% for s in current.stages %}
+  <div class="kanban-col" data-stage="{{ s.id }}">
+    <h3><span>{{ s.name }}</span><span class="hint">{{ s.win_pct }}% · {{ s.deals | length }}</span></h3>
+    {% for d in s.deals %}
+    <div class="deal" draggable="true" data-deal="{{ d.id }}">
+      <b>{{ d.title }}</b>
+      <div class="hint">{% if d.contact_id %}<a href="/crm/contacts/{{ d.contact_id }}">{{ d.business_name or d.first_name or "contact" }}</a>{% endif %}{% if d.value %} · ${{ d.value }}{% endif %}</div>
+    </div>
+    {% endfor %}
+    {% if s.value %}<div class="hint">Total ${{ s.value }}</div>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+<div class="grid grid-3" style="margin-top:16px">
+  <form class="card" method="post" action="/crm/deals">
+    <h2>New deal</h2>
+    <input type="hidden" name="pipeline_id" value="{{ current.id }}"><input type="hidden" name="back" value="/crm/pipeline?pipeline_id={{ current.id }}">
+    <div class="field"><label>Contact</label><select name="contact_id" required>{% for c in contacts %}<option value="{{ c.id }}">{{ c.business_name or c.first_name }}</option>{% endfor %}</select></div>
+    <div class="field"><label>Title</label><input type="text" name="title"></div>
+    <div class="field"><label>Value</label><input type="number" name="value"></div>
+    <button class="primary" type="submit">Add</button>
+  </form>
+  <div class="card">
+    <h2>Stages</h2>
+    {% for s in current.stages %}
+    <form method="post" action="/crm/stages/{{ s.id }}" class="row">
+      <div class="field" style="flex:3"><input type="text" name="name" value="{{ s.name }}"></div>
+      <div class="field"><input type="number" name="win_pct" value="{{ s.win_pct }}" min="0" max="100" title="Win %"></div>
+      <div class="field"><button class="btn-sm" type="submit">Save</button></div>
+    </form>
+    {% endfor %}
+  </div>
+  <form class="card" method="post" action="/crm/pipelines">
+    <h2>New pipeline</h2>
+    <div class="field"><label>Name</label><input type="text" name="name" required></div>
+    <div class="field"><label>Stages, one per line as "Name | win %"</label><textarea name="stages" placeholder="New | 5&#10;Qualified | 30&#10;Won | 100&#10;Lost | 0"></textarea></div>
+    <button type="submit">Create</button>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let dragged = null;
+document.querySelectorAll(".deal").forEach(d => {
+  d.addEventListener("dragstart", () => { dragged = d; d.classList.add("dragging"); });
+  d.addEventListener("dragend", () => d.classList.remove("dragging"));
+});
+document.querySelectorAll(".kanban-col").forEach(col => {
+  col.addEventListener("dragover", e => { e.preventDefault(); col.classList.add("over"); });
+  col.addEventListener("dragleave", () => col.classList.remove("over"));
+  col.addEventListener("drop", async e => {
+    e.preventDefault(); col.classList.remove("over");
+    if (!dragged) return;
+    const body = new FormData(); body.append("stage_id", col.dataset.stage);
+    const r = await fetch(`/crm/deals/${dragged.dataset.deal}/move`, {method: "POST", body});
+    if (r.ok) location.reload(); else alert("Could not move deal");
+  });
+});
+</script>
+{% endblock %}
