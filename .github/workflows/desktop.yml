@@ -88,10 +88,18 @@ jobs:
               if ($r.Content -match 'Settings' -and $r.Content -match [regex]::Escape("$env:APPDATA\MapProspector\.env")) { $ok = $true; break }
             } catch { }
           }
+          # Kill only the app process, as a crash would: the server must then stop by itself (app/desktop_run.py).
+          Stop-Process -Id $app.Id -Force
+          $gone = $false
+          foreach ($i in 1..30) {
+            Start-Sleep 1
+            try { Invoke-WebRequest http://127.0.0.1:8000/static/favicon.svg -UseBasicParsing -TimeoutSec 2 | Out-Null } catch { $gone = $true; break }
+          }
           $log = "$env:APPDATA\MapProspector\logs\server.log"
           if (Test-Path $log) { Get-Content $log -Tail 40 }
-          taskkill /pid $app.Id /T /F | Out-Null
           if (!$ok) { throw "The packaged app did not serve MapProspector on port 8000" }
+          if (!$gone) { throw "The server kept running after the app process was killed" }
+          exit 0
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
