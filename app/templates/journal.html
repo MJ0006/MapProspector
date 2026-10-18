@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Journal</h1><p>Everything the app did, what you decided about AI drafts, and every failure. Approved lessons are added to future drafts, so they improve as you edit.</p></div>
+  <div class="actions">{% for d in [7, 30, 90] %}<a class="btn {{ 'btn-primary' if f.days == d else '' }}" href="?days={{ d }}">{{ d }} days</a>{% endfor %}</div>
+</div>
+{% if request.query_params.get("learning") %}<div class="notice">Claude is reading your recent edits… proposed lessons appear below in a minute.</div>{% endif %}
+<div class="grid grid-3">
+  <div class="card">
+    <h2>AI drafts: what you did with them</h2>
+    {% for area, label in draft_areas.items() %}{% set a = stats.acceptance.get(area, {}) %}{% set total = (a.unchanged or 0) + (a.edited or 0) + (a.rejected or 0) %}
+    <p><b>{{ label }}</b><br><span class="hint">{% if total %}{{ a.unchanged or 0 }} used as-is · {{ a.edited or 0 }} edited · {{ a.rejected or 0 }} rejected ({{ ((100 * (a.unchanged or 0) / total) | round | int) }}% accepted unchanged){% else %}no decisions yet{% endif %}</span></p>
+    {% endfor %}
+  </div>
+  <div class="card">
+    <h2>Failures</h2>
+    {% for x in stats.failures %}<p><span class="badge bad">{{ x.n }}×</span> <b>{{ x.area }}</b> · {{ x.action }}<br><span class="hint">{{ (x.sample or "")[:140] }} · last {{ x.last | localtime }}</span></p>
+    {% else %}<div class="empty">No failures in this period.</div>{% endfor %}
+  </div>
+  <div class="card">
+    <h2>Claude calls</h2>
+    <p>{{ stats.ai.n or 0 }} calls · {{ stats.ai.failed or 0 }} failed{% if stats.ai.avg_ms %} · {{ ((stats.ai.avg_ms or 0) / 1000) | round(1) }} s average{% endif %}</p>
+    <form method="post" action="/journal/learn" class="row" style="margin-top:12px">
+      <div class="field"><label>Learn from my edits</label><select name="area">{% for k, v in draft_areas.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div>
+      <div class="field"><label>For</label><select name="company_id"><option value="">All clients</option>{% for c in companies %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></div>
+      <div class="field" style="align-self:end"><button type="submit" {% if not modules.claude %}disabled{% endif %}>Propose lessons</button></div>
+    </form>
+    <p class="hint">Also runs weekly on its own when there are 3+ new edits. Needs at least 2 edited or rejected drafts.</p>
+  </div>
+</div>
+<div class="card">
+  <h2>Lessons</h2>
+  {% for l in lessons %}
+  <form method="post" action="/journal/lessons/{{ l.id }}/approve" class="row" style="align-items:center;border-bottom:1px solid var(--border);padding:6px 0">
+    <div class="field" style="flex:0 0 140px"><span class="badge {{ 'warn' if l.status == 'proposed' else 'good' }}">{{ l.status }}</span><div class="hint">{{ draft_areas.get(l.area, l.area) }}{% if l.company %} · {{ l.company }}{% endif %}{% if l.uses %} · used {{ l.uses }}×{% endif %}</div></div>
+    <div class="field" style="flex:4"><input type="text" name="text" value="{{ l.text }}"></div>
+    <div class="field actions" style="flex:0 0 auto">
+      {% if l.status == "proposed" %}<button class="btn-sm btn-primary" type="submit">Approve</button>{% else %}<button class="btn-sm" type="submit">Save</button>{% endif %}
+      <button class="btn-sm" type="submit" formaction="/journal/lessons/{{ l.id }}/retire">{{ "Reject" if l.status == "proposed" else "Retire" }}</button>
+    </div>
+  </form>
+  {% else %}<div class="empty">No lessons yet. Edit or reject a few AI drafts, then click "Propose lessons".</div>{% endfor %}
+  <form method="post" action="/journal/lessons" class="row" style="margin-top:12px">
+    <div class="field"><select name="area">{% for k, v in draft_areas.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div>
+    <div class="field"><select name="company_id"><option value="">All clients</option>{% for c in companies %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></div>
+    <div class="field" style="flex:3"><input type="text" name="text" placeholder="Write your own rule, e.g. Never use exclamation marks in review replies" required></div>
+    <div class="field"><button type="submit">Add lesson</button></div>
+  </form>
+</div>
+<div class="card">
+  <h2>Events</h2>
+  <form class="row" method="get">
+    <input type="hidden" name="days" value="{{ f.days }}">
+    <div class="field"><select name="area"><option value="">All areas</option>{% for a in areas %}<option {% if f.area == a %}selected{% endif %}>{{ a }}</option>{% endfor %}</select></div>
+    <div class="field"><select name="kind"><option value="">All kinds</option>{% for k in ["job", "ai_call", "decision", "failure", "outcome"] %}<option {% if f.kind == k %}selected{% endif %}>{{ k }}</option>{% endfor %}</select></div>
+    <div class="field"><select name="outcome"><option value="">Any outcome</option>{% for o in ["ok", "failed", "edited", "rejected", "unchanged"] %}<option {% if f.outcome == o %}selected{% endif %}>{{ o }}</option>{% endfor %}</select></div>
+    <div class="field"><button type="submit">Filter</button></div>
+  </form>
+  <div class="table-wrap"><table>
+    <tr><th>When</th><th>Area</th><th>Kind</th><th>Action</th><th>Outcome</th><th>Detail</th></tr>
+    {% for e in events %}
+    <tr><td class="hint">{{ e.created_at | localtime }}</td><td>{{ e.area }}</td><td>{{ e.kind }}</td><td>{{ e.action }}</td>
+      <td><span class="badge {{ 'bad' if e.outcome == 'failed' else 'warn' if e.outcome in ['edited', 'rejected'] else 'good' }}">{{ e.outcome }}</span></td>
+      <td class="hint">{{ (e.detail or "")[:160] }}</td></tr>
+    {% else %}<tr><td colspan="6" class="empty">Nothing recorded in this period.</td></tr>{% endfor %}
+  </table></div>
+</div>
+{% endblock %}

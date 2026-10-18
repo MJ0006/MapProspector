@@ -13,6 +13,13 @@ FIELDS = [
     "primaryTypeDisplayName", "types", "websiteUri", "nationalPhoneNumber", "googleMapsUri",
     "businessStatus", "photos", "regularOpeningHours",
 ]
+# Per-point rank-scan searches only need what the heat map and competitor table show. Google bills a
+# Text Search request at the tier of the most expensive field asked for, so leaving out photos, hours,
+# phone and website keeps big grids cheaper. PLACES_SCAN_DETAIL=lite also drops rating/review counts.
+SCAN_FIELDS = ["id", "displayName", "formattedAddress", "location", "primaryTypeDisplayName", "types",
+               "googleMapsUri", "rating", "userRatingCount"]
+if settings.env("PLACES_SCAN_DETAIL") == "lite":
+    SCAN_FIELDS = SCAN_FIELDS[:-2]
 
 
 class PlacesError(RuntimeError):
@@ -33,7 +40,7 @@ def _headers(fields: list[str], prefix: str = "places.") -> dict:
     return {"X-Goog-Api-Key": _key(), "X-Goog-FieldMask": mask, "Content-Type": "application/json"}
 
 
-def normalize(p: dict) -> dict:
+def normalize(p: dict, fields: list[str] | None = None) -> dict:
     loc = p.get("location") or {}
     hours = (p.get("regularOpeningHours") or {}).get("weekdayDescriptions")
     return {
@@ -50,14 +57,16 @@ def normalize(p: dict) -> dict:
         "phone": p.get("nationalPhoneNumber"),
         "maps_url": p.get("googleMapsUri"),
         "business_status": p.get("businessStatus"),
-        "photos_count": len(p.get("photos") or []),
+        # Google omits empty fields and returns at most 10 photos: 10 means "10 or more",
+        # None means photos were not requested (rank-scan searches).
+        "photos_count": len(p.get("photos") or []) if "photos" in (fields or FIELDS) else None,
         "hours": hours,
     }
 
 
 def text_search(query: str, lat: float | None = None, lng: float | None = None,
                 radius_m: float | None = None, max_results: int = 20,
-                client: httpx.Client | None = None) -> list[dict]:
+                client: httpx.Client | None = None, fields: list[str] | None = None) -> list[dict]:
     """Ranked results for a query, optionally biased to a circle around (lat, lng)."""
     body: dict = {"textQuery": query, "pageSize": min(20, max_results)}
     if lat is not None and lng is not None:
@@ -67,11 +76,11 @@ def text_search(query: str, lat: float | None = None, lng: float | None = None,
     http = client or httpx.Client(timeout=30)
     try:
         while len(out) < max_results:
-            r = http.post(f"{BASE}/places:searchText", json=body, headers=_headers(FIELDS))
+            r = http.post(f"{BASE}/places:searchText", json=body, headers=_headers(fields or FIELDS))
             if r.status_code != 200:
                 raise PlacesError(f"Places search failed ({r.status_code}): {r.text[:300]}")
             data = r.json()
-            out += [normalize(p) for p in data.get("places", [])]
+            out += [normalize(p, fields) for p in data.get("places", [])]
             token = data.get("nextPageToken")
             if not token:
                 break

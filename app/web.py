@@ -1,5 +1,6 @@
 """Template rendering shared by every module."""
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import Request
@@ -11,6 +12,22 @@ from app import db, settings
 templates = Jinja2Templates(directory=str(Path(__file__).with_name("templates")))
 templates.env.filters["loads"] = lambda v, d=None: db.loads(v, d)
 templates.env.filters["tojson_pretty"] = lambda v: json.dumps(v, indent=2)
+
+
+def _localtime(value, fmt: str = "%Y-%m-%d %H:%M") -> str:
+    """UTC ISO string from the database -> this computer's local time for display."""
+    if not value:
+        return ""
+    try:
+        dt = datetime.fromisoformat(str(value))
+    except ValueError:
+        return str(value)[:16].replace("T", " ")
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone().strftime(fmt)
+
+
+templates.env.filters["localtime"] = _localtime
 
 NAV = [
     ("Prospecting", [
@@ -36,6 +53,7 @@ NAV = [
         ("/ask", "Ask (AI)"),
     ]),
     ("System", [
+        ("/journal", "Journal"),
         ("/settings", "Settings"),
     ]),
 ]
@@ -44,13 +62,27 @@ NAV = [
 def render(request: Request, name: str, **ctx):
     ctx.setdefault("modules", settings.modules())
     ctx.setdefault("brand", brand())
+    ctx.setdefault("public_is_local", public_is_local())
+    from app import notify
+    ctx.setdefault("notices", notify.notices())
     ctx["nav"] = NAV
     ctx["path"] = request.url.path
     return templates.TemplateResponse(request, name, ctx)
 
 
+def public_is_local() -> bool:
+    """True when links we hand to clients/Google (PUBLIC_BASE_URL) point at this computer only."""
+    host = settings.PUBLIC_BASE_URL.split("//", 1)[-1].split("/", 1)[0].rsplit(":", 1)[0].lower()
+    return host in ("127.0.0.1", "localhost", "0.0.0.0", "[::1]", "::1")
+
+
 def redirect(url: str):
     return RedirectResponse(url, status_code=303)
+
+
+def safe_back(url: str | None, default: str = "/") -> str:
+    from app.security import safe_next
+    return safe_next(url, default)
 
 
 def brand() -> dict:

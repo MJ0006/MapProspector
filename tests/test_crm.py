@@ -108,8 +108,13 @@ def test_crm_pages_render(client):
     assert client.get(f"/crm/automations/{aid}").status_code == 200
     # outbox approve without SMTP keeps it approved (waiting for SMTP / manual send)
     oid = db.insert("outbox", channel="email", contact_id=cid, to_addr="a@b.c", subject="s", body="b", status="draft", origin="t")
-    client.post(f"/crm/outbox/{oid}/approve", data={"body": "edited", "subject": "s2"})
+    r = client.post(f"/crm/outbox/{oid}/approve", data={"body": "edited", "subject": "s2", "to_addr": "a@b.c"})
+    assert r.status_code == 400 and "postal address" in r.text  # cold email, no address yet
+    db.set_setting("brand_address", "1 Main St, Austin TX 78701")
+    client.post(f"/crm/outbox/{oid}/approve", data={"body": "edited", "subject": "s2", "to_addr": "a@b.c"})
     m = db.one("SELECT * FROM outbox WHERE id = ?", oid)
-    assert m["status"] == "approved" and m["body"] == "edited" and m["subject"] == "s2"
+    assert m["status"] == "approved" and m["body"].startswith("edited") and "1 Main St" in m["body"] and m["subject"] == "s2"
+    oid2 = db.insert("outbox", channel="email", contact_id=cid, to_addr="", subject="s", body="b", status="draft", origin="t")
+    assert client.post(f"/crm/outbox/{oid2}/approve", data={"body": "b", "to_addr": ""}).status_code == 400
     r = client.post("/crm/contacts/import", files={"file": ("c.csv", b"business_name,email,tags\nBeta Co,b@b.co,hot\n", "text/csv")})
     assert db.one("SELECT source FROM contacts WHERE business_name = 'Beta Co'")["source"] == "import"

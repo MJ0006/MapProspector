@@ -3,7 +3,7 @@ import secrets
 
 from fastapi import APIRouter, Form, HTTPException, Request
 
-from app import ai, brain, db, jobs, mailer, places_store
+from app import ai, brain, db, jobs, journal, mailer, places_store
 from app.modules.audit import checks
 from app.web import redirect, render
 
@@ -25,8 +25,15 @@ TOOLS = {
 
 def run_audit(audit_id: int) -> None:
     a = db.one("SELECT * FROM audits WHERE id = ?", audit_id)
+    if not a or a["issues"] != -1:
+        return
     place = places_store.get(a["place_id"])
-    url, results = checks.run(place)
+    try:
+        url, results = checks.run(place)
+    except Exception as exc:  # never leave the page spinning
+        db.update("audits", audit_id, issues=0, checks=[{"key": "error", "label": "Audit could not finish",
+                  "group": "Website", "status": "fail", "detail": str(exc)[:300], "source": ""}])
+        raise
     db.update("audits", audit_id, url=url, checks=results,
               issues=sum(1 for c in results if c["status"] == "fail"))
     contact = db.one("SELECT id FROM contacts WHERE place_id = ?", a["place_id"])
@@ -90,6 +97,7 @@ def outreach_prompt(place: dict, results: list[dict], sender: str) -> str:
         "Observed failed checks:\n" + ("\n".join(failed) or "- none"),
         "Observed warnings:\n" + ("\n".join(warned) or "- none"),
         brain.GUARDRAILS,
+        journal.prompt_block("outbox"),
         'Reply as JSON: {"subject": "...", "body": "..."}',
     ])
 
@@ -102,11 +110,15 @@ def audit_draft_email(aid: int):
         raise HTTPException(400, "Save this business as a lead first.")
     from app.web import brand
     try:
-        draft = ai.ask_json(outreach_prompt(ctx["place"], db.loads(ctx["a"]["checks"], []), brand()["name"]))
+        draft = ai.ask_json(outreach_prompt(ctx["place"], db.loads(ctx["a"]["checks"], []), brand()["name"]),
+                            purpose="outbox")
     except (ai.AIUnavailable, ValueError) as exc:
         raise HTTPException(503, f"Could not draft with Claude: {exc}")
-    mailer.queue("email", contact["id"], contact["email"] or "", draft.get("subject", ""), draft.get("body", ""),
-                 origin="audit")
+    oid = mailer.queue("email", contact["id"], contact["email"] or "", draft.get("subject", ""), draft.get("body", ""),
+                       origin="audit")
+    if oid:
+        journal.record("outbox", "outcome", "draft", subject_type="outbox", subject_id=oid,
+                       data={"text": db.one("SELECT body FROM outbox WHERE id = ?", oid)["body"]})
     return redirect("/crm/outbox")
 
 
@@ -128,11 +140,18 @@ def tools_run(request: Request, prompt: str = Form(...), business_name: str = Fo
               audience: str = Form(""), extra: str = Form(""), company_id: str = Form("")):
     facts = {"Business name": business_name, "City / service area": city, "Primary category": category,
              "Services": services, "Website": website, "Audience": audience, "Other confirmed facts": extra}
-    full_prompt = brain.build_prompt(prompt, facts, doctrine_no=1 if prompt.startswith("gbp") else 3)
+    lessons = journal.prompt_block("tools", int(company_id) if company_id else None)
+    full_prompt = brain.build_prompt(prompt, facts, doctrine_no=1 if prompt.startswith("gbp") else 3, extra=lessons)
     error, output = "", ""
     try:
-        output = ai.ask(full_prompt)
+        output = ai.ask(full_prompt, purpose="tools")
     except ai.AIUnavailable as exc:
         error = str(exc)
     return render(request, "audit/tool_result.html", title="Draft", note=brain.prompt_note(prompt), output=output,
                   error=error, prompt_text=full_prompt, company_id=company_id)
+
+
+@jobs.on_startup
+def recover_audits() -> None:
+    for a in db.all("SELECT id FROM audits WHERE issues = -1"):
+        jobs.submit(run_audit, a["id"])

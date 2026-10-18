@@ -6,6 +6,7 @@ drafts for the user to approve; nothing generated is ever sent or published dire
 import json
 import shutil
 import subprocess
+import time
 
 from app import settings
 
@@ -21,29 +22,48 @@ def available() -> bool:
 
 
 def ask(prompt: str, *, web: bool = False, timeout: int = TIMEOUT, tools: list[str] | None = None,
-        mcp: bool = False) -> str:
+        mcp: bool = False, purpose: str = "ai") -> str:
     """Run one prompt. web=True lets Claude use web search/fetch (AI visibility, citation checks).
     mcp=True connects the MapProspector MCP server (.mcp.json) so Claude can read your data;
     `tools` lists the only tools Claude may use without asking."""
-    if not available():
+    exe = shutil.which("claude")  # full path: on Windows this resolves the npm "claude.cmd" shim
+    if not exe:
         raise AIUnavailable("The `claude` CLI is not installed or not on PATH.")
-    cmd = ["claude", "-p", prompt, "--output-format", "text"]
+    cmd = [exe, "-p", prompt, "--output-format", "text"]
     allowed = list(tools or []) + (["WebSearch", "WebFetch"] if web else [])
     if mcp:
         cmd += ["--mcp-config", str(settings.ROOT / ".mcp.json"), "--strict-mcp-config"]
     if allowed:
         cmd += ["--allowedTools", ",".join(allowed)]
     cwd = settings.ROOT if mcp else (settings.DATA_DIR if settings.DATA_DIR.exists() else None)
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=cwd)
+    from app import journal
+    t0 = time.monotonic()
+    meta = {"purpose": purpose, "web": web, "mcp": mcp, "prompt_chars": len(prompt), "prompt_head": prompt[:300]}
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=cwd)
+    except subprocess.TimeoutExpired:
+        journal.record(purpose, "ai_call", "ask", "failed", detail=f"timed out after {timeout}s",
+                       data={**meta, "ms": int((time.monotonic() - t0) * 1000)})
+        raise AIUnavailable(f"Claude did not answer within {timeout} seconds.")
+    ms = int((time.monotonic() - t0) * 1000)
     if proc.returncode != 0:
-        raise AIUnavailable((proc.stderr or proc.stdout or "claude exited with an error").strip()[:500])
+        err = (proc.stderr or proc.stdout or "claude exited with an error").strip()[:500]
+        journal.record(purpose, "ai_call", "ask", "failed", detail=err, data={**meta, "ms": ms})
+        raise AIUnavailable(err)
+    journal.record(purpose, "ai_call", "ask", data={**meta, "ms": ms, "reply_chars": len(proc.stdout)})
     return proc.stdout.strip()
 
 
-def ask_json(prompt: str, *, web: bool = False, timeout: int = TIMEOUT):
+def ask_json(prompt: str, *, web: bool = False, timeout: int = TIMEOUT, purpose: str = "ai"):
     """Ask for JSON and parse the first JSON value in the reply."""
-    text = ask(prompt + "\n\nReply with JSON only, no prose, no code fences.", web=web, timeout=timeout)
-    return extract_json(text)
+    text = ask(prompt + "\n\nReply with JSON only, no prose, no code fences.", web=web, timeout=timeout,
+               purpose=purpose)
+    try:
+        return extract_json(text)
+    except ValueError:
+        from app import journal
+        journal.failure(purpose, "parse_json", "Claude's reply had no valid JSON", data={"reply": text[:1000]})
+        raise
 
 
 def extract_json(text: str):

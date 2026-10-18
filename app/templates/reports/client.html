@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 {% include "clients/_tabs.html" %}
+{% if public_is_local %}<div class="notice warn">Report emails contain a link to the report. <code>PUBLIC_BASE_URL</code> is set to this computer, so other people (and Google) can't open these links. Set it to a public address (e.g. a tunnel) in <code>.env</code> and set <code>APP_PASSWORD</code>.</div>{% endif %}
 <div class="grid grid-2">
   <div>
     {% for r in reps %}
@@ -9,6 +10,7 @@
         <span class="badge">{{ r.schedule if r.schedule != "none" else "on demand" }}</span></div>
       <p class="hint">Sections: {{ (r.sections | loads([])) | join(", ") }}<br>To: {{ r.recipients or "nobody (download only)" }} · {{ "needs your approval" if r.require_approval else "sends automatically" }}
         {% if r.next_run_at %}<br>Next: {{ r.next_run_at[:16].replace("T", " ") }} UTC{% endif %}</p>
+      {% if r.last_error %}<div class="notice bad">Last scheduled build failed: {{ r.last_error }}</div>{% endif %}
       <div class="field"><input type="text" name="note" placeholder="Optional note at the top of this report"></div>
       <div class="actions"><button class="primary" type="submit">Build now</button>
         <button type="submit" class="btn-danger" formaction="/reports/{{ r.id }}/delete">Delete</button></div>

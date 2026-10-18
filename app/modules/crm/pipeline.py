@@ -3,7 +3,7 @@ from fastapi import APIRouter, Form, HTTPException, Request
 
 from app import db
 from app.modules.crm import automations
-from app.web import redirect, render
+from app.web import redirect, render, safe_back
 
 router = APIRouter()
 
@@ -75,7 +75,7 @@ def deal_new(contact_id: int = Form(...), title: str = Form(""), value: str = Fo
     c = db.one("SELECT * FROM contacts WHERE id = ?", contact_id)
     create_deal(contact_id, title or (c["business_name"] or "Deal"), int(pipeline_id) if pipeline_id else None,
                 value=float(value) if value else None)
-    return redirect(back)
+    return redirect(safe_back(back, "/crm/pipeline"))
 
 
 @router.post("/crm/deals/{deal_id}/move")

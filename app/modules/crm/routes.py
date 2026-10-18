@@ -1,14 +1,15 @@
 """CRM (D1–D6). Sub-routers: contacts/tasks/outbox here; pipeline, automations, forms, questionnaires."""
 import csv
 import io
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 
-from app import db, mailer
+from app import db, journal, mailer
 from app.modules.crm import automations, forms_routes, pipeline, questionnaires
 from app.modules.crm import automations_routes
-from app.web import redirect, render
+from app.uploads import read_limited
+from app.web import _localtime, redirect, render, safe_back
 
 router = APIRouter()
 router.include_router(pipeline.router)
@@ -63,7 +64,7 @@ def contact_new(business_name: str = Form(""), first_name: str = Form(""), last_
 @router.post("/crm/contacts/import")
 async def contacts_import(file: UploadFile = File(...)):
     """CSV with any of: business_name, first_name, last_name, email, phone, website, address, tags."""
-    text = (await file.read()).decode("utf-8-sig", errors="replace")
+    text = (await read_limited(file, "csv")).decode("utf-8-sig", errors="replace")
     n = 0
     for row in csv.DictReader(io.StringIO(text)):
         row = {k.strip().lower(): (v or "").strip() for k, v in row.items() if k}
@@ -165,11 +166,11 @@ def tasks(request: Request, show: str = "open"):
     rows = db.all(f"SELECT t.*, c.business_name, c.first_name FROM tasks t LEFT JOIN contacts c ON c.id = t.contact_id "
                   f"WHERE {where} ORDER BY t.done, t.due_at IS NULL, t.due_at LIMIT 500")
     # calendar: next 14 days
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now().date()  # calendar in local time
     days = []
     for i in range(14):
         d = (today + timedelta(days=i)).isoformat()
-        days.append({"date": d, "tasks": [t for t in rows if (t["due_at"] or "")[:10] == d]})
+        days.append({"date": d, "tasks": [t for t in rows if _localtime(t["due_at"], "%Y-%m-%d") == d]})
     return render(request, "crm/tasks.html", title="Tasks", rows=rows, days=days, show=show,
                   contacts=db.all("SELECT id, business_name, first_name FROM contacts WHERE is_spam = 0 ORDER BY business_name"))
 
@@ -177,9 +178,9 @@ def tasks(request: Request, show: str = "open"):
 @router.post("/crm/tasks")
 def task_new(title: str = Form(...), due_at: str = Form(""), contact_id: str = Form(""), notes: str = Form(""),
              back: str = Form("/crm/tasks")):
-    db.insert("tasks", title=title, notes=notes, due_at=due_at or None,
+    db.insert("tasks", title=title, notes=notes, due_at=db.to_utc(due_at),
               contact_id=int(contact_id) if contact_id else None, created_at=db.now())
-    return redirect(back)
+    return redirect(safe_back(back, "/crm/tasks"))
 
 
 @router.post("/crm/tasks/{tid}/done")
@@ -188,7 +189,7 @@ def task_done(tid: int, back: str = Form("/crm/tasks")):
     db.update("tasks", tid, done=0 if t["done"] else 1)
     if t["contact_id"] and not t["done"]:
         log_activity(t["contact_id"], "task", f"Done: {t['title']}")
-    return redirect(back)
+    return redirect(safe_back(back, "/crm/tasks"))
 
 
 # --- outbox ---------------------------------------------------------------------------
@@ -202,14 +203,27 @@ def outbox(request: Request, status: str = "draft"):
 
 
 @router.post("/crm/outbox/{oid}/{action}")
-def outbox_action(oid: int, action: str, body: str = Form(None), subject: str = Form(None)):
+def outbox_action(oid: int, action: str, body: str = Form(None), subject: str = Form(None),
+                  to_addr: str = Form(None)):
     m = db.one("SELECT * FROM outbox WHERE id = ?", oid)
     if not m:
         raise HTTPException(404)
+    ai_text = journal.last_draft("outbox", oid)
+    if ai_text is not None and m["status"] == "draft" and action in ("approve", "cancel"):
+        journal.decision("outbox", action, draft=ai_text, final=None if action == "cancel" else (body if body is not None else m["body"]),
+                         subject_type="outbox", subject_id=oid)
     if body is not None:
-        db.update("outbox", oid, body=body, subject=subject if subject is not None else m["subject"])
+        db.update("outbox", oid, body=body, subject=subject if subject is not None else m["subject"],
+                  to_addr=(to_addr.strip() if to_addr is not None else m["to_addr"]))
+        m = db.one("SELECT * FROM outbox WHERE id = ?", oid)
     if action == "approve":
-        db.update("outbox", oid, status="approved")
+        problem = mailer.approval_problem(m)
+        if problem:
+            raise HTTPException(400, problem)
+        cols = {"status": "approved"}
+        if m["channel"] == "email" and m["origin"] != "report":
+            cols["body"] = mailer.with_current_footer(m["body"] or "")
+        db.update("outbox", oid, **cols)
         mailer.send(oid)
     elif action == "cancel":
         db.update("outbox", oid, status="cancelled")

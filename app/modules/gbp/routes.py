@@ -6,10 +6,11 @@ from pathlib import Path
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, RedirectResponse
 
-from app import ai, db, mailer, places_store, settings
+from app import ai, db, journal, mailer, places_store, settings
 from app.modules.clients.routes import company_or_404
 from app.modules.gbp import lock, photos, posts, reviews
 from app.providers import gbp_api
+from app.uploads import read_limited
 from app.web import redirect, render
 
 router = APIRouter()
@@ -89,6 +90,11 @@ def post_action(post_id: int, action: str, body: str = Form(None), cta: str = Fo
         raise HTTPException(404)
     if body is not None:
         db.update("gbp_posts", post_id, body=body, cta=cta or None, cta_url=cta_url or None)
+    ai_text = journal.last_draft("post", post_id)
+    if ai_text is not None and p["status"] in ("draft", "failed") and action in ("approve", "schedule", "publish",
+                                                                                  "mark_published", "delete"):
+        journal.decision("posts", action, draft=ai_text, final=None if action == "delete" else (body or p["body"]),
+                         subject_type="post", subject_id=post_id, company_id=p["company_id"])
     if action == "approve":
         db.update("gbp_posts", post_id, status="approved")
     elif action == "schedule":
@@ -114,7 +120,7 @@ def post_action(post_id: int, action: str, body: str = Form(None), cta: str = Fo
 @router.get("/clients/{company_id}/reviews")
 def reviews_page(request: Request, company_id: int, show: str = "todo"):
     co = company_or_404(company_id)
-    where = "reply_status IN ('none','draft','approved')" if show == "todo" else "1 = 1"
+    where = "reply_status IN ('none','drafting','draft','approved')" if show == "todo" else "1 = 1"
     rows = db.all(f"SELECT * FROM reviews WHERE company_id = ? AND {where} ORDER BY review_date DESC LIMIT 300", company_id)
     reqs = db.all("SELECT r.*, c.business_name, c.first_name FROM review_requests r LEFT JOIN contacts c "
                   "ON c.id = r.contact_id WHERE r.company_id = ? ORDER BY r.id DESC LIMIT 50", company_id)
@@ -136,11 +142,11 @@ def reviews_sync(company_id: int):
 
 @router.post("/clients/{company_id}/reviews/draft-all")
 def reviews_draft_all(company_id: int):
-    for r in db.all("SELECT id FROM reviews WHERE company_id = ? AND reply_status = 'none' LIMIT 15", company_id):
-        try:
-            reviews.draft_reply(r["id"])
-        except ai.AIUnavailable as exc:
-            raise HTTPException(503, str(exc))
+    ids = [r["id"] for r in db.all("SELECT id FROM reviews WHERE company_id = ? AND reply_status = 'none' LIMIT 15", company_id)]
+    try:
+        reviews.queue_drafts(ids)
+    except ai.AIUnavailable as exc:
+        raise HTTPException(503, str(exc))
     return redirect(f"/clients/{company_id}/reviews")
 
 
@@ -151,16 +157,23 @@ def review_action(review_id: int, action: str, text: str = Form("")):
         raise HTTPException(404)
     if action == "draft":
         try:
-            reviews.draft_reply(review_id)
+            reviews.queue_drafts([review_id])
         except ai.AIUnavailable as exc:
             raise HTTPException(503, str(exc))
-    elif action == "approve":
-        try:
-            reviews.publish_reply(review_id, text or rv["reply_draft"] or "")
-        except gbp_api.GBPError as exc:
-            raise HTTPException(502, str(exc))
-    elif action == "mark_replied":
-        db.update("reviews", review_id, reply_status="published", reply_text=text or rv["reply_draft"], replied_at=db.now())
+    elif action in ("approve", "mark_replied"):
+        final = text or rv["reply_draft"] or ""
+        if rv["reply_draft"]:
+            journal.decision("reviews", action, draft=rv["reply_draft"], final=final, subject_type="review",
+                             subject_id=review_id, company_id=rv["company_id"])
+        if action == "approve":
+            try:
+                reviews.publish_reply(review_id, final)
+            except gbp_api.GBPError as exc:
+                journal.failure("reviews", "publish_reply", exc, subject_type="review", subject_id=review_id,
+                                company_id=rv["company_id"])
+                raise HTTPException(502, str(exc))
+        else:
+            db.update("reviews", review_id, reply_status="published", reply_text=final, replied_at=db.now())
     return redirect(f"/clients/{rv['company_id']}/reviews")
 
 
@@ -237,7 +250,7 @@ async def photos_upload(company_id: int, files: list[UploadFile] = File(...), ca
             continue
         name = photos.descriptive_name(co["name"], caption, f.filename, n0 + i + 1)
         path = folder / name
-        path.write_bytes(await f.read())
+        path.write_bytes(await read_limited(f, "photo"))
         glat = glng = None
         if stamp_gps and lat and lng and photos.stamp_gps(path, float(lat), float(lng)):
             glat, glng = float(lat), float(lng)
@@ -384,7 +397,8 @@ def optimize_page(request: Request, company_id: int):
             ("Website", bool(place.get("website")), place.get("website")),
             ("Phone", bool(place.get("phone")), place.get("phone")),
             ("Opening hours", bool(place.get("hours")), "; ".join(place.get("hours") or [])),
-            ("10+ photos", (place.get("photos_count") or 0) >= 10, f"{place.get('photos_count') or 0} photos"),
+            ("10+ photos", (place.get("photos_count") or 0) >= 10,
+             "10 or more photos" if (place.get("photos_count") or 0) >= 10 else f"{place.get('photos_count') or 0} photos"),
             ("Reviews", (place.get("review_count") or 0) >= 25, f"{place.get('review_count') or 0} reviews, {place.get('rating') or '—'}★"),
         ]
     return _page(request, "gbp/optimize.html", co, "optimize", place=place, items=items)

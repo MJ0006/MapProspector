@@ -32,6 +32,12 @@
     <button class="theme-toggle btn-sm" type="button" onclick="toggleTheme()" aria-label="Toggle light or dark theme">◐ Theme</button>
   </aside>
   <main>
+    {% if notices %}
+    <div class="notice-bar">
+      {% for n in notices %}<a class="badge {{ n.level }}" href="{{ n.href }}">{{ n.text }}</a>{% endfor %}
+      <form method="post" action="/notices/seen" style="display:inline"><button class="btn-sm" type="submit" title="Hide new-review and failure notices until something new happens">Dismiss</button></form>
+    </div>
+    {% endif %}
     {% block content %}{% endblock %}
   </main>
 </div>

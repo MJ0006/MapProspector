@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
+{% if public_is_local %}<div class="notice warn">Embedded website forms post to this app. <code>PUBLIC_BASE_URL</code> is set to this computer, so other people (and Google) can't open these links. Set it to a public address (e.g. a tunnel) in <code>.env</code> and set <code>APP_PASSWORD</code>.</div>{% endif %}
 <div class="page-head">
   <div><h1>Forms &amp; spam</h1><p>Capture website leads into the CRM. Spam rules run on every submission; blocked ones are kept so you can rescue them.</p></div>
 </div>

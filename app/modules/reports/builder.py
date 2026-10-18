@@ -3,7 +3,7 @@ held for your approval, then emailed as a link (and downloadable as a file)."""
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from app import brain, db, jobs, mailer, markdown, settings
+from app import brain, db, jobs, journal, mailer, markdown, settings
 from app.modules.gbp import reviews
 from app.modules.rank import engine as rank
 from app.web import brand, templates
@@ -111,5 +111,12 @@ def next_run_at(schedule: str, after: datetime) -> str | None:
 def run_due_reports() -> None:
     now = datetime.now(timezone.utc)
     for r in db.all("SELECT * FROM reports WHERE next_run_at IS NOT NULL AND next_run_at <= ?", now.isoformat(timespec="seconds")):
-        build_run(r["id"])
+        # Advance first so a failing report is retried next period, not every minute.
         db.update("reports", r["id"], next_run_at=next_run_at(r["schedule"], now))
+        try:
+            build_run(r["id"])
+            db.update("reports", r["id"], last_error=None)
+        except Exception as exc:
+            db.update("reports", r["id"], last_error=str(exc)[:300])
+            journal.failure("report", "scheduled_build", exc, subject_type="report", subject_id=r["id"],
+                            company_id=r["company_id"])

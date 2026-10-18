@@ -12,7 +12,7 @@
       <button class="btn-sm" type="submit">{{ "↺" if t.done else "✓" }}</button>
       <span {% if t.done %}style="text-decoration:line-through" class="hint"{% endif %}><b>{{ t.title }}</b></span>
       {% if t.contact_id %}<a class="hint" href="/crm/contacts/{{ t.contact_id }}">{{ t.business_name or t.first_name }}</a>{% endif %}
-      <span class="hint">{{ (t.due_at or "no due date")[:16].replace("T", " ") }}</span>
+      <span class="hint">{{ (t.due_at | localtime) or "no due date" }}</span>
     </form>
     {% else %}<div class="empty">No tasks.</div>{% endfor %}
     <form method="post" action="/crm/tasks" style="margin-top:12px">

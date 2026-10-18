@@ -5,7 +5,7 @@ import secrets
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import Response
 
-from app import brain, db, jobs, places_store, settings
+from app import brain, db, journal, places_store, settings
 from app.modules.citations import engine
 from app.modules.clients.routes import company_or_404
 from app.providers import gbp_api
@@ -32,11 +32,7 @@ def citations_start(request: Request, name: str = Form(...), street: str = Form(
     nap = {"name": name, "street": street, "city": city, "state": state, "zip": zip, "phone": phone, "website": website}
     aid = engine.create_audit(nap, company_id=int(company_id) if company_id else None,
                               place_id=int(place_id) if place_id else None, vertical=vertical or None)
-    from app import ai
-    if ai.available():
-        jobs.submit(engine.run_audit, aid)
-    else:
-        db.update("citation_audits", aid, status="manual")
+    engine.start(aid)
     return redirect(f"/citations/{aid}")
 
 
@@ -60,7 +56,8 @@ def citations_view(request: Request, aid: int):
 @router.post("/citations/{aid}/rerun")
 def citations_rerun(aid: int):
     db.run("UPDATE citation_listings SET status = 'pending' WHERE audit_id = ? AND status IN ('unavailable','missing')", aid)
-    jobs.submit(engine.run_audit, aid)
+    db.update("citation_audits", aid, status="queue")
+    engine.start(aid)
     return redirect(f"/citations/{aid}")
 
 
@@ -80,6 +77,11 @@ def listing_update(lid: int, status: str = Form(...), listing_url: str = Form(""
         cols.update(fields=fields, status=engine.listing_status(fields))
     else:
         cols["status"] = status
+    if l["checked_by"] == "auto" and cols.get("status") and cols["status"] != l["status"]:
+        # You corrected an automatic lookup: a signal about how reliable the checker is per directory.
+        journal.record("citations", "decision", "correct", "edited", subject_type="listing", subject_id=lid,
+                       company_id=l["company_id"], detail=f"{l['directory']}: {l['status']} -> {cols['status']}",
+                       data={"directory": l["directory"], "auto": l["status"], "manual": cols["status"]})
     db.update("citation_listings", lid, **cols)
     if l["audit_id"]:
         engine.finish(l["audit_id"])
@@ -129,9 +131,7 @@ def client_citation_audit(company_id: int, vertical: str = Form("")):
     co = company_or_404(company_id)
     aid = engine.create_audit(engine.profile(company_id), company_id=company_id, place_id=co["place_id"],
                               vertical=vertical or None)
-    from app import ai
-    if ai.available():
-        jobs.submit(engine.run_audit, aid)
+    engine.start(aid)
     return redirect(f"/clients/{company_id}/citations")
 
 

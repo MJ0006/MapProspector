@@ -2,7 +2,7 @@
 you review/approve → publish now or on a schedule (connected mode) or copy into Google yourself."""
 from datetime import datetime, timezone
 
-from app import ai, brain, db, jobs
+from app import ai, brain, db, jobs, journal
 from app.providers import gbp_api
 
 CTAS = {"": "No button", "CALL": "Call now", "LEARN_MORE": "Learn more", "BOOK": "Book", "ORDER": "Order online",
@@ -19,6 +19,7 @@ def post_prompt(company: dict, topic: str, tone: str, length: str, facts: str) -
         "(Google rejects posts containing phone numbers), no prices or offers unless given above.",
         "Brain chapter on posts:\n" + brain.chapter("gbp/gbp-posts", 1200),
         brain.GUARDRAILS,
+        journal.prompt_block("posts", company.get("id")),
         "Reply with only the post text.",
     ])
 
@@ -32,10 +33,26 @@ def company_facts(company: dict) -> str:
 
 
 def draft(company_id: int, topic: str, tone: str = "", length: str = "", extra_facts: str = "") -> int:
-    co = db.one("SELECT * FROM companies WHERE id = ?", company_id)
+    """Queue a Claude draft. The row shows as 'drafting' until Claude finishes (can take a minute)."""
+    if not ai.available():
+        raise ai.AIUnavailable("The `claude` CLI is not installed or not on PATH.")
+    pid = db.insert("gbp_posts", company_id=company_id, topic=topic, body="", status="drafting", created_at=db.now())
+    jobs.submit(_fill, pid, tone, length, extra_facts)
+    return pid
+
+
+def _fill(post_id: int, tone: str, length: str, extra_facts: str) -> None:
+    p = db.one("SELECT * FROM gbp_posts WHERE id = ?", post_id)
+    co = db.one("SELECT * FROM companies WHERE id = ?", p["company_id"])
     facts = company_facts(co) + ("\n" + extra_facts if extra_facts else "")
-    text = ai.ask(post_prompt(co, topic, tone, length, facts))
-    return db.insert("gbp_posts", company_id=company_id, topic=topic, body=text.strip(), status="draft", created_at=db.now())
+    try:
+        text = ai.ask(post_prompt(co, p["topic"], tone, length, facts), purpose="posts")
+    except Exception as exc:
+        db.update("gbp_posts", post_id, status="failed", error=f"Drafting failed: {exc}"[:300])
+        return
+    db.update("gbp_posts", post_id, body=text.strip(), status="draft", error=None)
+    journal.record("posts", "outcome", "draft", subject_type="post", subject_id=post_id, company_id=co["id"],
+                   data={"text": text.strip()})
 
 
 def publish(post_id: int) -> str:
@@ -62,3 +79,9 @@ def publish_scheduled() -> None:
                 db.update("gbp_posts", p["id"], status="approved", error="Due now: post it in Google (not connected).")
         except gbp_api.GBPError:
             pass
+
+
+@jobs.on_startup
+def recover_drafts() -> None:
+    db.run("UPDATE gbp_posts SET status = 'failed', error = 'Drafting was interrupted (app closed). Delete and draft again.' "
+           "WHERE status = 'drafting'")

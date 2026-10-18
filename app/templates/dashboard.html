@@ -32,7 +32,7 @@
   <div class="card">
     <h2>Open tasks</h2>
     {% if tasks %}
-    <table>{% for t in tasks %}<tr><td>{{ t.title }}</td><td class="hint">{{ (t.due_at or "")[:16].replace("T", " ") }}</td></tr>{% endfor %}</table>
+    <table>{% for t in tasks %}<tr><td>{{ t.title }}</td><td class="hint">{{ t.due_at | localtime }}</td></tr>{% endfor %}</table>
     {% else %}<div class="empty">Nothing due.</div>{% endif %}
   </div>
 </div>

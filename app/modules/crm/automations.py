@@ -13,9 +13,10 @@ Outgoing messages go through the outbox, so cold contacts always need your appro
 """
 import json
 import re
+import threading
 from datetime import datetime, timedelta, timezone
 
-from app import db, jobs, mailer, settings
+from app import db, jobs, journal, mailer, settings
 
 TRIGGERS = {
     "form_submitted": "New form submission",
@@ -87,10 +88,16 @@ def render_vars(text: str, contact: dict, ctx: dict) -> str:
     return re.sub(r"\{\{\s*([\w.]+)\s*\}\}", sub, text or "")
 
 
+MAX_DEPTH = 3  # automations triggering automations (e.g. move_deal -> deal_stage) stop after this
+_depth = threading.local()
+
+
 def fire(trigger: str, contact_id: int, **context) -> list[int]:
     """Start every active automation for this trigger whose config and filters match."""
     contact = _contact(contact_id)
     if not contact or contact["is_spam"]:
+        return []
+    if getattr(_depth, "n", 0) >= MAX_DEPTH:
         return []
     started = []
     for a in db.all("SELECT * FROM automations WHERE active = 1 AND trigger = ?", trigger):
@@ -104,7 +111,11 @@ def fire(trigger: str, contact_id: int, **context) -> list[int]:
                 continue
         if not all(matches(contact, f) for f in (db.loads(a["filters"], []) or [])):
             continue
-        started.append(start(a["id"], contact_id, context))
+        _depth.n = getattr(_depth, "n", 0) + 1
+        try:
+            started.append(start(a["id"], contact_id, context))
+        finally:
+            _depth.n -= 1
     return started
 
 
@@ -139,6 +150,8 @@ def advance(run_id: int) -> None:
         try:
             outcome = execute(action, contact, ctx)
         except Exception as exc:
+            journal.failure("automation", action.get("type", "?"), exc, subject_type="automation_run", subject_id=run_id,
+                            data={"automation_id": run["automation_id"], "step": step})
             db.update("automation_runs", run_id, status="failed", step=step,
                       log=_log(run, f"step {step} {action.get('type')} failed: {exc}"), updated_at=db.now())
             return
@@ -186,11 +199,16 @@ def execute(action: dict, contact: dict, ctx: dict) -> dict:
         db.update("contacts", contact["id"], tags=tags)
         return {"note": f"tag {action.get('tag')}"}
     if t == "move_deal":
+        from app.modules.crm import pipeline
         deal = db.one("SELECT * FROM deals WHERE contact_id = ? AND status = 'open' ORDER BY id DESC", contact["id"])
         if not deal:
             return {"note": "no open deal"}
-        db.update("deals", deal["id"], stage_id=int(action["stage_id"]), updated_at=db.now())
-        return {"note": f"deal moved to stage {action['stage_id']}"}
+        stage = db.one("SELECT * FROM pipeline_stages WHERE id = ? AND pipeline_id = ?", int(action["stage_id"]),
+                       deal["pipeline_id"])
+        if not stage:
+            return {"note": "stage is not in this deal's pipeline"}
+        pipeline.move_deal(deal["id"], stage["id"])  # same path as dragging: won/lost status, log, triggers
+        return {"note": f"deal moved to {stage['name']}"}
     if t == "condition":
         ok = matches(contact, action)
         return {"note": "condition met" if ok else "condition not met, stopping", "stop": not ok}

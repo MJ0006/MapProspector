@@ -127,9 +127,29 @@ def list_tasks(include_done: bool = False) -> list[dict]:
 
 
 def create_task(title: str, due_at: str = "", contact_id: int | None = None, company_id: int | None = None) -> dict:
-    tid = db.insert("tasks", title=title, due_at=due_at or None, contact_id=contact_id, company_id=company_id,
+    tid = db.insert("tasks", title=title, due_at=db.to_utc(due_at), contact_id=contact_id, company_id=company_id,
                     created_at=db.now())
     return {"id": tid, "title": title}
+
+
+def get_journal(area: str = "", kind: str = "", outcome: str = "", days: int = 14, limit: int = 100) -> dict:
+    """Recent events + failure summary, for agents diagnosing or improving the app's workflows."""
+    from app import journal
+    sql, args = "SELECT id, created_at, area, kind, action, outcome, subject_type, subject_id, detail, data FROM events " \
+                "WHERE created_at >= strftime('%Y-%m-%dT%H:%M:%S', 'now', ?)", [f"-{int(days)} days"]
+    for col, val in (("area", area), ("kind", kind), ("outcome", outcome)):
+        if val:
+            sql += f" AND {col} = ?"
+            args.append(val)
+    rows = db.all(sql + " ORDER BY id DESC LIMIT ?", *args, min(int(limit), 500))
+    for r in rows:
+        r["data"] = db.loads(r["data"], {})
+    return {"summary": journal.stats(int(days)), "events": rows}
+
+
+def get_lessons(area: str = "") -> list[dict]:
+    sql = "SELECT id, area, company_id, text, status, uses FROM lessons WHERE status != 'retired'"
+    return db.all(sql + (" AND area = ?" if area else "") + " ORDER BY area, id", *([area] if area else []))
 
 
 def find_business(name: str) -> list[dict]:
@@ -163,6 +183,10 @@ TOOLS = {
     "get_ai_visibility": (get_ai_visibility, "Latest AI visibility report for a place_id.", _schema({"place_id": I}, ["place_id"])),
     "get_client_plan": (get_client_plan, "Local SEO Brain Draft health scorecard and roadmap for a client.",
                         _schema({"company_id": I}, ["company_id"])),
+    "get_journal": (get_journal, "The app's journal: job runs, Claude calls, your decisions on AI drafts (unchanged/edited/rejected "
+                                 "with both texts) and failures with error details. Use it to find what breaks and why.",
+                    _schema({"area": S, "kind": S, "outcome": S, "days": I, "limit": I})),
+    "get_lessons": (get_lessons, "Lessons learned from the owner's edits (proposed and active).", _schema({"area": S})),
     "list_tasks": (list_tasks, "Open tasks (or all with include_done).", _schema({"include_done": B})),
     "create_task": (create_task, "Create a task / reminder.", _schema({"title": S, "due_at": S, "contact_id": I, "company_id": I}, ["title"])),
 }

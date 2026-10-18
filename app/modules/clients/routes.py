@@ -4,6 +4,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 
 from app import brain, db, markdown, places_store, settings
+from app.uploads import read_limited
 from app.web import redirect, render
 
 router = APIRouter()
@@ -111,7 +112,7 @@ async def client_evidence(company_id: int, kind: str = Form(...), label: str = F
     settings.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     safe = brain.slugify(file.filename.rsplit(".", 1)[0]) + "." + (file.filename.rsplit(".", 1)[-1].lower()[:5] or "txt")
     path = settings.UPLOAD_DIR / f"{co['vault_slug']}-{kind}-{safe}"
-    path.write_bytes(await file.read())
+    path.write_bytes(await read_limited(file, "evidence"))
     try:
         brain.ingest(kind, co["vault_slug"], path, label=label or file.filename)
         if kind == "reviews":
@@ -120,6 +121,17 @@ async def client_evidence(company_id: int, kind: str = Form(...), label: str = F
     except brain.BrainError as exc:
         raise HTTPException(400, f"Local SEO Brain could not read that file: {exc}")
     return redirect(f"/clients/{company_id}")
+
+
+@router.post("/clients/{company_id}/delete")
+def client_delete(company_id: int):
+    """Remove the client from the app. Its Local SEO Brain vault folder stays on disk."""
+    co = company_or_404(company_id)
+    db.run("UPDATE contacts SET company_id = NULL WHERE company_id = ?", company_id)
+    db.run("DELETE FROM companies WHERE id = ?", company_id)
+    from app import journal
+    journal.record("clients", "decision", "delete_client", detail=f"{co['name']} (vault kept: {co['vault_slug']})")
+    return redirect("/clients")
 
 
 @router.post("/clients/{company_id}/synthesize")

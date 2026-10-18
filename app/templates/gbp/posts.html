@@ -22,7 +22,10 @@
     </form>
   </div>
   <div>
-    {% for p in rows %}
+    {% if rows | selectattr("status", "equalto", "drafting") | list %}
+    <div class="notice">Claude is drafting… new posts appear here as they finish.</div><script>setTimeout(() => location.reload(), 5000);</script>
+    {% endif %}
+    {% for p in rows %}{% if p.status == "drafting" %}<div class="card"><span class="badge info">drafting…</span> <span class="hint">{{ p.topic }}</span></div>{% else %}
     <form class="card" method="post" action="/gbp/posts/{{ p.id }}/approve">
       <div class="actions" style="justify-content:space-between">
         <span><span class="badge {{ 'good' if p.status == 'published' else 'info' if p.status in ['approved','scheduled'] else 'bad' if p.status == 'failed' else '' }}">{{ p.status }}</span>
@@ -49,7 +52,7 @@
       </div>
       {% endif %}
     </form>
-    {% else %}<div class="card empty">No posts yet.</div>{% endfor %}
+    {% endif %}{% else %}<div class="card empty">No posts yet.</div>{% endfor %}
   </div>
 </div>
 {% endblock %}

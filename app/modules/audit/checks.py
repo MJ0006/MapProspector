@@ -114,7 +114,8 @@ def listing_checks(place: dict) -> list[dict]:
                       "reviews/_index"))
     if place.get("photos_count") is not None:
         out.append(_check("gbp_photos", "Photos on the listing", g, "pass" if place["photos_count"] >= 10 else "warn",
-                          f"{place['photos_count']} photos returned by Google.", src))
+                          ("10 or more photos (Google's API reports at most 10)." if place["photos_count"] >= 10
+                           else f"{place['photos_count']} photos returned by Google."), src))
     if place.get("business_status") and place["business_status"] != "OPERATIONAL":
         out.append(_check("gbp_status", "Business shown as open", g, "fail",
                           f"Google shows status {place['business_status']}.", "gbp/warning-for-gbp-changes"))

@@ -11,18 +11,40 @@ SCHEMA = Path(__file__).with_name("schema.sql")
 _db_path: Path | None = None
 
 
+# Columns added after the first release: (table, column, type). Applied to older databases on startup;
+# new databases already get them from schema.sql. Add new entries at the end and bump nothing else.
+COLUMNS = [
+    ("companies", "gbp_location", "TEXT"), ("companies", "gsc_site", "TEXT"), ("companies", "lock_checked_at", "TEXT"),
+    ("audits", "share_token", "TEXT"), ("citation_audits", "share_token", "TEXT"),
+    ("scan_schedules", "last_error", "TEXT"), ("reports", "last_error", "TEXT"),
+]
+UNIQUE_INDEXES = [("audits", "share_token"), ("citation_audits", "share_token")]
+
+
 def init(path: Path | None = None) -> None:
     global _db_path
     settings.ensure_dirs()
     _db_path = path or settings.DB_PATH
     with connect() as c:
+        c.execute("PRAGMA journal_mode = WAL")  # background jobs + MCP server write concurrently
         c.executescript(SCHEMA.read_text())
+        migrate(c)
+
+
+def migrate(c: sqlite3.Connection) -> None:
+    for table, column, ctype in COLUMNS:
+        cols = {r[1] for r in c.execute(f"PRAGMA table_info({table})")}
+        if cols and column not in cols:
+            c.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ctype}")
+    for table, column in UNIQUE_INDEXES:
+        c.execute(f"CREATE UNIQUE INDEX IF NOT EXISTS ux_{table}_{column} ON {table}({column})")
 
 
 def _conn() -> sqlite3.Connection:
     c = sqlite3.connect(_db_path or settings.DB_PATH, timeout=30)
     c.row_factory = sqlite3.Row
     c.execute("PRAGMA foreign_keys = ON")
+    c.execute("PRAGMA busy_timeout = 30000")
     return c
 
 
@@ -55,6 +77,24 @@ def run(sql: str, *args) -> int:
     """Execute a write; returns lastrowid."""
     with connect() as c:
         return c.execute(sql, args).lastrowid
+
+
+def claim(table: str, row_id: int, from_statuses: tuple[str, ...], to: str) -> bool:
+    """Atomically move a row's status; False if another worker already took it."""
+    marks = ", ".join("?" for _ in from_statuses)
+    with connect() as c:
+        cur = c.execute(f"UPDATE {table} SET status = ? WHERE id = ? AND status IN ({marks})", (to, row_id, *from_statuses))
+        return cur.rowcount == 1
+
+
+def to_utc(value: str | None) -> str | None:
+    """'2026-10-19T09:00' typed in a browser (local time) or any ISO string -> UTC ISO."""
+    if not value:
+        return None
+    dt = datetime.fromisoformat(value)
+    if dt.tzinfo is None:
+        dt = dt.astimezone()  # interpret as this computer's local time
+    return dt.astimezone(timezone.utc).replace(microsecond=0).isoformat()
 
 
 def insert(table: str, **cols) -> int:

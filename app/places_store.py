@@ -25,8 +25,12 @@ def upsert(p: dict) -> int:
         "maps_url": p.get("maps_url"),
         "fetched_at": db.now(),
     }
-    existing = db.one("SELECT id FROM places WHERE google_place_id = ?", cols["google_place_id"]) \
-        if cols["google_place_id"] else None
+    if cols["google_place_id"]:
+        existing = db.one("SELECT id FROM places WHERE google_place_id = ?", cols["google_place_id"])
+    else:  # manual / demo entries: same name at the same spot is the same business
+        existing = db.one("SELECT id FROM places WHERE google_place_id IS NULL AND name = ? AND "
+                          "ROUND(lat, 5) IS ROUND(?, 5) AND ROUND(lng, 5) IS ROUND(?, 5)",
+                          cols["name"], cols["lat"], cols["lng"])
     if existing:
         # Keep values we already have when a provider omits a field.
         db.update("places", existing["id"], **{k: v for k, v in cols.items() if v not in (None, "[]")})

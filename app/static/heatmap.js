@@ -1,4 +1,7 @@
 // Heat map rendering + "flip the map" for a scan. Usage: renderHeatmap(dataUrl)
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+}
 function rankClass(rank) {
   if (!rank) return "rn";
   if (rank <= 3) return "r1";
@@ -22,7 +25,8 @@ async function renderHeatmap(dataUrl) {
       const label = !p.ok ? "!" : rank ? rank : "20+";
       const icon = L.divIcon({className: "", iconSize: [30, 30],
         html: `<div class="rank-pin ${p.ok ? rankClass(rank) : "rn"}">${label}</div>`});
-      const tip = p.ok ? `Top 3 here: ${p.top.join(", ") || "—"}` : "This point failed to load";
+      // Business names come from Google/DataForSEO: escape before Leaflet renders them as HTML.
+      const tip = p.ok ? `Top 3 here: ${p.top.map(esc).join(", ") || "—"}` : "This point failed to load";
       L.marker([p.lat, p.lng], {icon}).bindTooltip(tip).addTo(layer);
     });
   }

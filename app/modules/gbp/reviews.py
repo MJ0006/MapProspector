@@ -10,7 +10,7 @@ import json
 import secrets
 from pathlib import Path
 
-from app import ai, brain, db, settings
+from app import ai, brain, db, jobs, journal, settings
 from app.providers import gbp_api
 
 
@@ -68,6 +68,7 @@ def reply_prompt(company: dict, review: dict) -> str:
         "liability, offer to make it right offline, and give no private details. 2–4 sentences. Do not mention "
         "the reviewer's name. Do not ask them to change their rating. Do not offer incentives.",
         brain.GUARDRAILS,
+        journal.prompt_block("reviews", company.get("id")),
         "Reply with only the reply text.",
     ])
 
@@ -75,9 +76,34 @@ def reply_prompt(company: dict, review: dict) -> str:
 def draft_reply(review_id: int) -> str:
     rv = db.one("SELECT * FROM reviews WHERE id = ?", review_id)
     co = db.one("SELECT * FROM companies WHERE id = ?", rv["company_id"])
-    text = ai.ask(reply_prompt(co, rv))
+    text = ai.ask(reply_prompt(co, rv), purpose="reviews")
     db.update("reviews", review_id, reply_draft=text, reply_status="draft")
+    journal.record("reviews", "outcome", "draft", subject_type="review", subject_id=review_id, company_id=co["id"],
+                   data={"text": text})
     return text
+
+
+def queue_drafts(review_ids: list[int]) -> None:
+    """Draft replies in the background; rows show 'drafting' meanwhile."""
+    if not ai.available():
+        raise ai.AIUnavailable("The `claude` CLI is not installed or not on PATH.")
+    for rid in review_ids:
+        prev = db.one("SELECT reply_status FROM reviews WHERE id = ?", rid)["reply_status"]
+        db.update("reviews", rid, reply_status="drafting")
+        jobs.submit(_draft_safely, rid, prev)
+
+
+def _draft_safely(review_id: int, previous_status: str) -> None:
+    try:
+        draft_reply(review_id)
+    except Exception:
+        db.update("reviews", review_id, reply_status=previous_status if previous_status != "drafting" else "none")
+
+
+@jobs.on_startup
+def recover_drafts() -> None:
+    db.run("UPDATE reviews SET reply_status = CASE WHEN reply_draft IS NULL THEN 'none' ELSE 'draft' END "
+           "WHERE reply_status = 'drafting'")
 
 
 def publish_reply(review_id: int, text: str) -> bool:
@@ -107,6 +133,7 @@ def stats(company_id: int) -> dict:
 
 def create_request(company_id: int, contact_id: int | None, channel: str = "link") -> str:
     token = secrets.token_urlsafe(9)
+    # "created" until the customer opens it; whether the message went out is tracked in the outbox.
     db.insert("review_requests", company_id=company_id, contact_id=contact_id, token=token, channel=channel,
-              status="sent" if channel in ("email", "sms") else "created", created_at=db.now())
+              status="created", created_at=db.now())
     return f"{settings.PUBLIC_BASE_URL}/r/{token}"

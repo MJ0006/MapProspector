@@ -90,7 +90,7 @@
         <input type="hidden" name="back" value="/crm/contacts/{{ c.id }}">
         <button class="btn-sm" type="submit">{{ "↺" if t.done else "✓" }}</button>
         <span {% if t.done %}style="text-decoration:line-through" class="hint"{% endif %}>{{ t.title }}</span>
-        <span class="hint">{{ (t.due_at or "")[:16].replace("T", " ") }}</span>
+        <span class="hint">{{ t.due_at | localtime }}</span>
       </form>
       {% endfor %}
       <form method="post" action="/crm/tasks" class="row">

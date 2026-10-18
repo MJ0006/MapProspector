@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from urllib.parse import quote
 
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -68,8 +69,8 @@ def rank_create(place_id: str = Form(""), manual_name: str = Form(""), manual_la
             ids = engine.create_scans(pid, kws, surface=surface, provider=provider, size=size,
                                       spacing_m=spacing_m, shape=shape)
     except (ValueError, KeyError) as exc:
-        q = f"place_id={place_id}&" if place_id else ""
-        return redirect(f"/rank/new?{q}error={exc}")
+        q = f"place_id={quote(place_id)}&" if place_id else ""
+        return redirect(f"/rank/new?{q}error={quote(str(exc))}")
     return redirect(f"/rank/{ids[0]}" if len(ids) == 1 else "/rank")
 
 
@@ -136,10 +137,13 @@ def _data(scan: dict) -> dict:
 @router.post("/rank/{scan_id}/rerun")
 def rank_rerun(scan_id: int):
     scan = _scan_or_404(scan_id)
-    ids = engine.create_scans(scan["place_id"], [scan["keyword"]], surface=scan["surface"],
-                              provider=scan["provider"], size=scan["grid_size"], spacing_m=scan["spacing_m"],
-                              shape=scan["shape"], center=(scan["center_lat"], scan["center_lng"]),
-                              polygon=(db.loads(scan["stats"], {}) or {}).get("polygon"))
+    try:
+        ids = engine.create_scans(scan["place_id"], [scan["keyword"]], surface=scan["surface"],
+                                  provider=scan["provider"], size=scan["grid_size"], spacing_m=scan["spacing_m"],
+                                  shape=scan["shape"], center=(scan["center_lat"], scan["center_lng"]),
+                                  polygon=(db.loads(scan["stats"], {}) or {}).get("polygon"))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
     return redirect(f"/rank/{ids[0]}")
 
 
@@ -183,7 +187,10 @@ def schedule_action(schedule_id: int, action: str):
         nxt = engine.next_run(s["recurrence"], s["day"], datetime.now(timezone.utc))
         db.update("scan_schedules", schedule_id, paused=0, next_run_at=nxt.isoformat(timespec="seconds"))
     elif action == "run":
-        engine.run_schedule(schedule_id)
+        try:
+            engine.run_schedule(schedule_id)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc))
     elif action == "delete":
         db.run("DELETE FROM scan_schedules WHERE id = ?", schedule_id)
     return redirect("/rank")

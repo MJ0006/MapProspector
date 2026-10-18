@@ -10,7 +10,7 @@ import re
 from collections import Counter, defaultdict
 from urllib.parse import urlparse
 
-from app import ai, db, places_store, settings
+from app import ai, db, jobs, places_store, settings
 from app.modules.rank import grid
 from app.providers import ai_engines, dataforseo
 
@@ -187,8 +187,17 @@ def run_aio_grid(keyword: str, name: str, lat: float, lng: float, spacing_m: flo
 
 
 def run(run_id: int) -> None:
+    if not db.claim("aivis_runs", run_id, ("queue",), "in_progress"):
+        return
+    try:
+        _run(run_id)
+    except Exception as exc:
+        db.update("aivis_runs", run_id, status="failed", error=f"Check stopped: {exc}"[:500])
+        raise
+
+
+def _run(run_id: int) -> None:
     row = db.one("SELECT * FROM aivis_runs WHERE id = ?", run_id)
-    db.update("aivis_runs", run_id, status="in_progress")
     place = places_store.get(row["place_id"]) if row["place_id"] else None
     business = {"name": row["business_name"], "city": row["city"], "category": row["category"],
                 "website": place.get("website") if place else None}
@@ -214,3 +223,10 @@ def run(run_id: int) -> None:
     ok = report["answers"] > 0
     db.update("aivis_runs", run_id, status="completed" if ok else "failed", report=report,
               error=None if ok else "Every engine call failed; see the question table.", completed_at=db.now())
+
+
+@jobs.on_startup
+def recover_runs() -> None:
+    db.run("UPDATE aivis_runs SET status = 'queue' WHERE status = 'in_progress'")
+    for r in db.all("SELECT id FROM aivis_runs WHERE status = 'queue'"):
+        jobs.submit(run, r["id"])

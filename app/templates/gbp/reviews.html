@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 {% include "clients/_tabs.html" %}
+{% if public_is_local %}<div class="notice warn">Review requests are links to this app. <code>PUBLIC_BASE_URL</code> is set to this computer, so other people (and Google) can't open these links. Set it to a public address (e.g. a tunnel) in <code>.env</code> and set <code>APP_PASSWORD</code>.</div>{% endif %}
 <div class="grid grid-4">
   <div class="card stat"><b>{{ stats.avg or "—" }}</b><span>Average rating ({{ stats.count }} reviews)</span></div>
   <div class="card stat"><b>{{ stats.unreplied }}</b><span>Waiting for a reply</span></div>
@@ -15,6 +16,9 @@
       {% if connected and co.gbp_location %}<form method="post" action="/clients/{{ co.id }}/reviews/sync"><button>Sync from Google</button></form>{% endif %}
       {% if modules.claude %}<form method="post" action="/clients/{{ co.id }}/reviews/draft-all"><button>Draft replies for unanswered (Claude)</button></form>{% endif %}
     </div>
+    {% if rows | selectattr("reply_status", "equalto", "drafting") | list %}
+    <div class="notice">Claude is drafting replies… this page refreshes.</div><script>setTimeout(() => location.reload(), 5000);</script>
+    {% endif %}
     {% for r in rows %}
     <form class="card" method="post" action="/gbp/reviews/{{ r.id }}/approve">
       <div class="actions" style="justify-content:space-between"><b>{{ "★" * (r.rating or 0) }}{{ "☆" * (5 - (r.rating or 0)) }}</b>

@@ -116,13 +116,18 @@ def ingest_submission(form: dict, data: dict, ip: str | None, country: str | Non
 @router.post("/f/{token}")
 async def public_form_submit(request: Request, token: str):
     form = _form(token)
-    if request.headers.get("content-type", "").startswith("application/json"):
-        data = await request.json()
-    else:
-        data = {k: v for k, v in (await request.form()).items() if isinstance(v, str)}
+    try:
+        if request.headers.get("content-type", "").startswith("application/json"):
+            data = await request.json()
+        else:
+            data = {k: v for k, v in (await request.form()).items() if isinstance(v, str)}
+    except ValueError:
+        raise HTTPException(400, "Could not read the submission.")
+    if not isinstance(data, dict) or len(data) > 40:
+        raise HTTPException(400, "Unexpected submission format.")
     if data.pop("_hp", ""):  # honeypot field filled = bot
         return HTMLResponse("Thanks!")
-    data = {k: str(v)[:5000] for k, v in data.items()}
+    data = {str(k)[:60]: str(v)[:5000] for k, v in data.items() if v is not None}
     for f in form["fields"]:
         if f.get("required") and not data.get(f["name"]):
             raise HTTPException(400, f"{f['label']} is required")

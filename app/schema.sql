@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS scan_schedules (
   recurrence TEXT NOT NULL,          -- daily | weekly | biweekly | monthly_day | first_monday
   day INTEGER,                       -- weekday 0-6 or day-of-month
   paused INTEGER NOT NULL DEFAULT 0,
-  next_run_at TEXT, last_run_at TEXT,
+  next_run_at TEXT, last_run_at TEXT, last_error TEXT,
   created_at TEXT
 );
 
@@ -300,7 +300,7 @@ CREATE TABLE IF NOT EXISTS reports (
   recipients TEXT,                   -- comma separated emails
   schedule TEXT,                     -- none | weekly | monthly
   require_approval INTEGER NOT NULL DEFAULT 1,
-  next_run_at TEXT, created_at TEXT
+  next_run_at TEXT, last_error TEXT, created_at TEXT
 );
 CREATE TABLE IF NOT EXISTS report_runs (
   id INTEGER PRIMARY KEY,
@@ -308,4 +308,33 @@ CREATE TABLE IF NOT EXISTS report_runs (
   html TEXT NOT NULL, token TEXT UNIQUE NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending_approval', -- pending_approval | approved | sent | failed
   created_at TEXT, sent_at TEXT
+);
+
+-- Journal (self-improvement layer) -------------------------------------------------------------
+-- Every job run, AI call, decision on AI output, and failure. Read by the Journal page, the
+-- notifier, the lesson generator and the MCP server (so agents can learn from history).
+CREATE TABLE IF NOT EXISTS events (
+  id INTEGER PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  area TEXT NOT NULL,                -- rank | aivis | audit | citations | posts | reviews | outbox | automation | report | brain | ai | job
+  kind TEXT NOT NULL,                -- job | ai_call | decision | failure | outcome
+  action TEXT NOT NULL,              -- e.g. run, draft, approve, edit_approve, reject, new_review
+  outcome TEXT NOT NULL DEFAULT 'ok',-- ok | failed | edited | rejected | unchanged
+  subject_type TEXT, subject_id INTEGER, company_id INTEGER,
+  detail TEXT,
+  data TEXT                          -- JSON: durations, errors, draft vs final text, etc.
+);
+CREATE INDEX IF NOT EXISTS ix_events_area ON events(area, kind, created_at);
+CREATE INDEX IF NOT EXISTS ix_events_subject ON events(subject_type, subject_id);
+
+-- Lessons distilled from the journal. Proposed by Claude, only used once you approve them.
+CREATE TABLE IF NOT EXISTS lessons (
+  id INTEGER PRIMARY KEY,
+  area TEXT NOT NULL,                -- posts | reviews | outbox | tools | citations | ...
+  company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE,  -- NULL = applies everywhere
+  text TEXT NOT NULL,
+  evidence TEXT,                     -- JSON list of event ids it was learned from
+  status TEXT NOT NULL DEFAULT 'proposed', -- proposed | active | retired
+  uses INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT, updated_at TEXT
 );

@@ -10,7 +10,7 @@ Score = (live + 0.5 × wrong) ÷ (live + wrong + missing) × 100, then a letter 
 """
 import re
 
-from app import ai, db, places_store
+from app import ai, db, jobs, places_store
 from app.modules.aivis.engine import domain
 
 DIRECTORIES = [
@@ -139,9 +139,27 @@ def lookup_prompt(nap: dict, dirs: list[tuple[str, str]]) -> str:
 
 
 def run_audit(audit_id: int, batch: int = 5) -> None:
+    if not db.claim("citation_audits", audit_id, ("queue",), "in_progress"):
+        return
+    try:
+        _run_audit(audit_id, batch)
+    except Exception:
+        db.run("UPDATE citation_listings SET status = 'unavailable' WHERE audit_id = ? AND status = 'pending'", audit_id)
+        finish(audit_id)
+        raise
+
+
+def start(audit_id: int) -> None:
+    """Queue automatic checks when the claude CLI is available; otherwise the audit is filled in by hand."""
+    if ai.available():
+        jobs.submit(run_audit, audit_id)
+    else:
+        db.update("citation_audits", audit_id, status="manual")
+
+
+def _run_audit(audit_id: int, batch: int = 5) -> None:
     a = db.one("SELECT * FROM citation_audits WHERE id = ?", audit_id)
     nap = db.loads(a["business"], {})
-    db.update("citation_audits", audit_id, status="in_progress")
     rows = db.all("SELECT * FROM citation_listings WHERE audit_id = ? AND status = 'pending'", audit_id)
     by_name = {r["directory"]: r for r in rows}
     dirs = [(n, s) for n, s, _ in DIRECTORIES if n in by_name]
@@ -172,8 +190,14 @@ def finish(audit_id: int) -> None:
     listings = db.all("SELECT status FROM citation_listings WHERE audit_id = ?", audit_id)
     s, g = score(listings)
     done = all(l["status"] != "pending" for l in listings)
-    db.update("citation_audits", audit_id, score=s, grade=g, status="completed" if done else "in_progress",
-              completed_at=db.now() if done else None)
+    current = db.one("SELECT status FROM citation_audits WHERE id = ?", audit_id)["status"]
+    if done:
+        status = "completed"
+    elif current in ("manual", "completed"):
+        status = "manual"  # filled in by hand: never show the "checking" spinner
+    else:
+        status = "in_progress"
+    db.update("citation_audits", audit_id, score=s, grade=g, status=status, completed_at=db.now() if done else None)
 
 
 def create_audit(nap: dict, *, company_id: int | None = None, place_id: int | None = None,
@@ -195,3 +219,10 @@ def summary(listings: list[dict]) -> dict:
                 field_acc[f][bucket] += 1
     counts = {s: sum(1 for l in listings if l["status"] == s) for s in ("live", "wrong", "missing", "pending", "unavailable")}
     return {"counts": counts, "fields": field_acc, "claimable": sum(1 for l in listings if l.get("claimable") == 1)}
+
+
+@jobs.on_startup
+def recover_audits() -> None:
+    db.run("UPDATE citation_audits SET status = 'queue' WHERE status = 'in_progress'")
+    for a in db.all("SELECT id FROM citation_audits WHERE status = 'queue'"):
+        start(a["id"])

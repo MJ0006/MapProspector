@@ -12,7 +12,7 @@ import re
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from app import db, jobs, places_store, settings
+from app import db, jobs, journal, places_store, settings
 from app.modules.rank import grid
 from app.providers import dataforseo, demo, places
 
@@ -60,7 +60,12 @@ def find_rank(target: dict, results: list[dict], surface: str = "google_maps") -
             if tdom and _domain(r.get("website") or r.get("domain")) == tdom:
                 return i
         elif target.get("name") and _norm_name(r.get("name")) == _norm_name(target["name"]):
-            return i
+            # Name is only a fallback when IDs can't be compared; otherwise another branch of a
+            # chain with the same name would be counted as the target.
+            both_have_ids = (target.get("google_place_id") and r.get("google_place_id")) or \
+                            (target.get("cid") and r.get("cid"))
+            if not both_have_ids:
+                return i
     return None
 
 
@@ -74,7 +79,8 @@ def provider_search(provider: str, surface: str, keyword: str, lat: float, lng: 
     if provider == "places":
         if surface != "google_maps":
             raise ValueError("Google Places mode only supports the Google Maps surface.")
-        return places.text_search(keyword, lat, lng, radius_m=max(spacing_m, 500), max_results=DEPTH)
+        return places.text_search(keyword, lat, lng, radius_m=max(spacing_m, 500), max_results=DEPTH,
+                                  fields=places.SCAN_FIELDS)
     if provider == "dataforseo":
         if surface == "google_maps":
             return dataforseo.maps_search(keyword, lat, lng, spacing_m, depth=DEPTH)
@@ -88,6 +94,8 @@ def create_scans(place_id: int | None, keywords: list[str], *, surface: str, pro
                  center: tuple[float, float] | None = None, schedule_id: int | None = None) -> list[int]:
     if provider not in PROVIDERS:
         raise ValueError("Unknown provider")
+    if provider not in available_providers():
+        raise ValueError(f"{PROVIDERS[provider]['label']} is not configured (add its key to .env).")
     if surface not in PROVIDERS[provider]["surfaces"]:
         raise ValueError(f"{PROVIDERS[provider]['label']} does not support {SURFACES.get(surface, surface)}.")
     target = places_store.get(place_id) if place_id else None
@@ -107,10 +115,18 @@ def create_scans(place_id: int | None, keywords: list[str], *, surface: str, pro
 
 
 def run_scan(scan_id: int) -> None:
+    if not db.claim("scans", scan_id, ("queue",), "in_progress"):
+        return  # missing, or already taken by another worker
+    try:
+        _run_scan(scan_id)
+    except Exception as exc:
+        db.update("scans", scan_id, status="failed", error=f"Scan stopped: {exc}"[:500], completed_at=db.now())
+        raise
+
+
+def _run_scan(scan_id: int) -> None:
     scan = db.one("SELECT * FROM scans WHERE id = ?", scan_id)
-    if not scan or scan["status"] not in ("queue", "failed", "incomplete"):
-        return
-    db.update("scans", scan_id, status="in_progress", error=None)
+    db.update("scans", scan_id, error=None)
     db.run("DELETE FROM scan_points WHERE scan_id = ?", scan_id)
     polygon = (db.loads(scan["stats"], {}) or {}).get("polygon")
     target_row = places_store.get(scan["place_id"]) if scan["place_id"] else None
@@ -144,11 +160,15 @@ def run_scan(scan_id: int) -> None:
     db.update("scans", scan_id, status=status, stats=stats,
               error=(f"{len(errors)} of {len(pts)} points failed: {errors[0]}" if errors else None),
               completed_at=db.now())
+    journal.record("rank", "job", "scan", "ok" if status == "completed" else "failed", subject_type="scan",
+                   subject_id=scan_id, detail=f"{scan['provider']} {status}: {ok_points}/{len(pts)} points",
+                   data={"provider": scan["provider"], "points": len(pts), "failed_points": len(errors),
+                         "first_error": errors[0] if errors else None})
     if scan["provider"] == "dataforseo" and ok_points:
         jobs.submit(refresh_keyword_data, [scan["keyword"]])
     if ok_points:
         from app.modules.rank import hooks
-        hooks.scan_completed(scan_id)
+        jobs.submit(hooks.scan_completed, scan_id)  # vault export problems must not fail the scan
 
 
 def refresh_keyword_data(keywords: list[str]) -> None:
@@ -285,12 +305,19 @@ def next_run(recurrence: str, day: int | None, after: datetime) -> datetime:
 def run_schedule(schedule_id: int) -> list[int]:
     s = db.one("SELECT * FROM scan_schedules WHERE id = ?", schedule_id)
     g = db.loads(s["grid"], {})
-    ids = create_scans(s["place_id"], db.loads(s["keywords"], []), surface=s["surface"], provider=s["provider"],
-                       size=g["size"], spacing_m=g["spacing_m"], shape=g.get("shape", "square"),
-                       polygon=g.get("polygon"), schedule_id=schedule_id)
     now = datetime.now(timezone.utc)
+    # Advance first, so a failing schedule (e.g. a removed API key) is retried next period, not every minute.
     db.update("scan_schedules", schedule_id, last_run_at=now.isoformat(timespec="seconds"),
               next_run_at=next_run(s["recurrence"], s["day"], now).isoformat(timespec="seconds"))
+    try:
+        ids = create_scans(s["place_id"], db.loads(s["keywords"], []), surface=s["surface"], provider=s["provider"],
+                           size=g["size"], spacing_m=g["spacing_m"], shape=g.get("shape", "square"),
+                           polygon=g.get("polygon"), schedule_id=schedule_id)
+    except ValueError as exc:
+        db.update("scan_schedules", schedule_id, last_error=str(exc))
+        journal.failure("rank", "schedule", exc, subject_type="schedule", subject_id=schedule_id)
+        raise
+    db.update("scan_schedules", schedule_id, last_error=None)
     return ids
 
 
@@ -298,4 +325,15 @@ def run_schedule(schedule_id: int) -> list[int]:
 def run_due_schedules() -> None:
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     for s in db.all("SELECT id FROM scan_schedules WHERE paused = 0 AND next_run_at <= ?", now):
-        run_schedule(s["id"])
+        try:
+            run_schedule(s["id"])
+        except ValueError:
+            continue  # recorded on the schedule (last_error) and in the journal; the others still run
+
+
+@jobs.on_startup
+def recover_scans() -> None:
+    """Scans cut off by a crash or the app closing restart from the beginning."""
+    db.run("UPDATE scans SET status = 'queue' WHERE status = 'in_progress'")
+    for s in db.all("SELECT id FROM scans WHERE status = 'queue'"):
+        jobs.submit(run_scan, s["id"])

@@ -83,6 +83,6 @@ def test_ai_ask_command_line(monkeypatch):
     monkeypatch.setattr(subprocess, "run", fake_run)
     assert ai.ask("hi", mcp=True, tools=["mcp__mapprospector__list_clients"], web=True) == "ok"
     cmd = captured["cmd"]
-    assert cmd[:3] == ["claude", "-p", "hi"] and "--strict-mcp-config" in cmd
+    assert cmd[:3] == ["/usr/bin/claude", "-p", "hi"] and "--strict-mcp-config" in cmd
     assert cmd[cmd.index("--allowedTools") + 1] == "mcp__mapprospector__list_clients,WebSearch,WebFetch"
     assert str(captured["cwd"]).endswith("mapprospector")

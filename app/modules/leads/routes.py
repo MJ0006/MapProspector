@@ -4,7 +4,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from app import db, places_store, settings
 from app.providers import demo, places
-from app.web import redirect, render
+from app.web import redirect, render, safe_back
 
 router = APIRouter()
 
@@ -87,7 +87,7 @@ async def leads_save_place(request: Request):
         return HTMLResponse(f'<a class="badge good" href="/crm/contacts/{cid}">saved</a>')
     if then_scan:
         return redirect(f"/rank/new?place_id={pid}")
-    return redirect(form.get("back") or f"/crm/contacts/{cid}")
+    return redirect(safe_back(form.get("back"), f"/crm/contacts/{cid}"))
 
 
 def save_lead(place_id: int) -> int:

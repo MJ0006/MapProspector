@@ -13,7 +13,8 @@
     <tr>
       <td>{{ s.name }}</td><td>{{ s.business or "—" }}</td><td>{{ (s.keywords | loads([])) | join(", ") }}</td>
       <td>{{ surfaces[s.surface] }}</td><td>{{ recurrences[s.recurrence] }}</td>
-      <td>{% if s.paused %}<span class="badge warn">paused</span>{% else %}{{ (s.next_run_at or "")[:16].replace("T", " ") }} UTC{% endif %}</td>
+      <td>{% if s.paused %}<span class="badge warn">paused</span>{% else %}{{ (s.next_run_at or "")[:16].replace("T", " ") }} UTC{% endif %}
+        {% if s.last_error %}<div class="badge bad" title="{{ s.last_error }}">last run failed: {{ s.last_error[:80] }}</div>{% endif %}</td>
       <td class="actions">
         <form method="post" action="/rank/schedules/{{ s.id }}/run"><button class="btn-sm">Run now</button></form>
         {% if s.paused %}<form method="post" action="/rank/schedules/{{ s.id }}/resume"><button class="btn-sm">Resume</button></form>

@@ -9,6 +9,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 log = logging.getLogger("mapprospector.jobs")
 scheduler = BackgroundScheduler(job_defaults={"misfire_grace_time": 3600, "coalesce": True})
 _ticks: list = []
+_startup: list = []
 # Tests set this to True so queued work runs inline and deterministically.
 INLINE = False
 
@@ -26,6 +27,17 @@ def on_tick(fn):
     return fn
 
 
+def on_startup(fn):
+    """Register a function run once when the app starts (recover work interrupted by a crash or close)."""
+    _startup.append(fn)
+    return fn
+
+
+def recover():
+    for fn in _startup:
+        _safe(fn)
+
+
 def tick():
     for fn in _ticks:
         _safe(fn)
@@ -34,8 +46,13 @@ def tick():
 def _safe(fn, *args, **kwargs):
     try:
         return fn(*args, **kwargs)
-    except Exception:  # background work must never kill the scheduler
-        log.error("job %s failed\n%s", getattr(fn, "__name__", fn), traceback.format_exc())
+    except Exception as exc:  # background work must never kill the scheduler
+        name = getattr(fn, "__qualname__", str(fn))
+        log.error("job %s failed\n%s", name, traceback.format_exc())
+        from app import journal
+        journal.failure(getattr(fn, "__module__", "job").split(".")[-2] if "." in getattr(fn, "__module__", "") else "job",
+                        name, f"{type(exc).__name__}: {exc}", data={"args": [str(a)[:80] for a in args],
+                                                                  "trace": traceback.format_exc()[-1500:]})
 
 
 def start():

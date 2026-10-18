@@ -10,6 +10,7 @@ It covers the feature set of LeadSnap (found by inspecting leadsnap.com's public
 | **CRM** | Contacts and timeline · Kanban pipelines · tasks and calendar · **outbox with approval** · automations (triggers, filters, waits, actions) · lead forms with spam filters · onboarding questionnaires |
 | **Client SEO** | A Local SEO Brain vault per client (Draft scorecard, roadmap, weekly report) · AI posts · review replies · review requests (no gating) · photo drips · profile lock · insights and Search Console · citation profile and tracker · branded scheduled reports |
 | **AI** | Every draft is written by **your Claude Code subscription** through the `claude` CLI (no API key) · *Ask* page · MCP server so Claude Code can query your data and start scans |
+| **Journal** | Every job, Claude call, decision on AI drafts (used as-is / edited / rejected) and failure is recorded. Claude turns your edits into **lessons** you approve, and approved lessons are added to future drafts, so drafts improve as you use the app. |
 
 ## Run it in VS Code
 
@@ -25,6 +26,10 @@ uvicorn app.main:app --reload
 ```
 
 Open http://127.0.0.1:8000. Data (SQLite database, client vaults, uploads) lives in `./data`, which git ignores.
+
+Run **one** app process (no `--workers`), so scheduled jobs don't run twice. Schedules, automation waits, profile checks and review syncs only run while the app is running.
+
+**Access:** with no `APP_PASSWORD`, admin pages only answer requests made on this computer. Public pages (forms `/f/…`, questionnaires `/q/…`, review links `/r/…`, share links `/share/…`) always work. Before exposing the app with a tunnel so clients can open links, set `APP_PASSWORD` and `PUBLIC_BASE_URL`. Requests coming from other websites are always rejected.
 
 If you cloned without `--recurse-submodules`, run `git submodule update --init` to fetch Local SEO Brain.
 
@@ -55,11 +60,12 @@ Every module switches itself off when its key is missing. **Settings** shows wha
 
 ## Claude Code integration
 
-This repo has a `.mcp.json`, so Claude Code opened in this folder can use the `mapprospector` tools:
+This repo has a `.mcp.json`, so Claude Code opened in this folder can use the `mapprospector` tools. Start Claude Code from the activated venv (`source .venv/bin/activate` first), so `python3` finds the app's dependencies; on Windows, change `python3` to `python` in `.mcp.json`. Tools:
 
 - `list_clients`, `list_leads`, `list_scans`, `get_scan`, `compare_scans`, `start_scan`
 - `list_reviews`, `get_citations`, `get_ai_visibility`, `get_client_plan`
 - `list_tasks`, `create_task`
+- `get_journal`, `get_lessons`: failure history and your edits to AI drafts, so agents can see what breaks before changing a workflow (see `CLAUDE.md`)
 
 Try asking: *"Which competitor owns the north side for roof repair in my latest scan?"*
 

@@ -115,6 +115,8 @@ textarea { min-height: 90px; resize: vertical; }
 .notice.bad { background: var(--bad-bg); color: var(--bad); }
 .notice.good { background: var(--good-bg); color: var(--good); }
 .empty { color: var(--muted); padding: 18px 0; text-align: center; }
+.notice-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 16px; }
+.notice-bar .badge { padding: 4px 10px; }
 
 /* heat map */
 .map { height: 520px; border-radius: var(--radius); border: 1px solid var(--border); }

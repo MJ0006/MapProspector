@@ -39,6 +39,29 @@ def queue(channel: str, contact_id: int | None, to_addr: str, subject: str, body
                      created_at=db.now())
 
 
+def with_current_footer(body: str) -> str:
+    """Replace an older footer (e.g. written before the postal address was set) with the current one."""
+    cut = body.rfind("\n--\n")
+    base = body[:cut] if cut != -1 else body
+    return base.rstrip() + "\n" + footer()
+
+
+def approval_problem(m: dict) -> str | None:
+    """Why this message can't be approved yet, or None."""
+    to = (m.get("to_addr") or "").strip()
+    if not to:
+        return "Add a recipient first."
+    if m["channel"] == "email" and ("@" not in to or " " in to):
+        return f"\"{to}\" is not an email address."
+    contact = db.one("SELECT source, do_not_contact FROM contacts WHERE id = ?", m["contact_id"]) if m.get("contact_id") else None
+    if contact and contact["do_not_contact"]:
+        return "This contact asked not to be contacted."
+    if m["channel"] == "email" and contact and contact["source"] in COLD_SOURCES and not brand()["address"]:
+        return ("Cold emails must include your postal address (CAN-SPAM). Add it in Settings → Branding, "
+                "then approve again.")
+    return None
+
+
 def send(outbox_id: int) -> None:
     m = db.one("SELECT * FROM outbox WHERE id = ?", outbox_id)
     if not m or m["status"] != "approved" or m["channel"] != "email":

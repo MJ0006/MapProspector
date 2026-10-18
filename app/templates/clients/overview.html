@@ -37,7 +37,8 @@
         <div class="field"><label>Search Console property</label><input type="text" name="gsc_site" value="{{ co.gsc_site or '' }}" placeholder="sc-domain:example.com"></div>
       </div>
       {% if connected %}<p><a href="/clients/{{ co.id }}/link">Pick from your Google account</a></p>{% endif %}
-      <button type="submit">Save</button>
+      <div class="actions"><button type="submit">Save</button>
+        <button type="submit" class="btn-danger" formaction="/clients/{{ co.id }}/delete" onclick="return confirm('Remove this client from MapProspector? Its vault folder stays on disk.')">Delete client</button></div>
     </form>
     <div class="card">
       <h2>Quick links</h2>

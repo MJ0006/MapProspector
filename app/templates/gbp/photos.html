@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
 {% include "clients/_tabs.html" %}
+{% if connected %}{% if public_is_local %}<div class="notice warn">Google fetches published photos from this app. <code>PUBLIC_BASE_URL</code> is set to this computer, so other people (and Google) can't open these links. Set it to a public address (e.g. a tunnel) in <code>.env</code> and set <code>APP_PASSWORD</code>.</div>{% endif %}
+{% endif %}
 <div class="grid grid-1-2">
   <form class="card" method="post" action="/clients/{{ co.id }}/photos" enctype="multipart/form-data">
     <h2>Upload photos</h2>
