@@ -276,6 +276,7 @@ CREATE TABLE IF NOT EXISTS citation_audits (
   place_id INTEGER REFERENCES places(id) ON DELETE SET NULL,
   business TEXT NOT NULL,            -- JSON NAP used for matching
   status TEXT NOT NULL DEFAULT 'queue', score INTEGER, grade TEXT,
+  share_token TEXT UNIQUE,
   created_at TEXT, completed_at TEXT
 );
 CREATE TABLE IF NOT EXISTS citation_listings (

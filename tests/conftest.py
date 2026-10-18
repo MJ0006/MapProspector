@@ -23,6 +23,10 @@ def isolated(tmp_path, monkeypatch):
                 "GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET"):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setattr(jobs, "INLINE", True)
+    # Never call the real claude CLI from tests; tests that need AI patch app.ai explicitly.
+    import shutil
+    real_which = shutil.which
+    monkeypatch.setattr(shutil, "which", lambda name, *a, **k: None if name == "claude" else real_which(name, *a, **k))
     db.init(tmp_path / "test.db")
     yield tmp_path
 

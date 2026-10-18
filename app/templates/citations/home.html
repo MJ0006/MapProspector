@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Citation audit</h1><p>Check how a business is listed across the directories that matter, field by field.</p></div>
+</div>
+{% if not modules.claude %}<div class="notice warn">Automatic checks use the <code>claude</code> CLI (web search). Without it, the audit is created for you to fill in by hand.</div>{% endif %}
+<form class="card" method="post" action="/citations">
+  <input type="hidden" name="place_id" value="{{ place.id if place else '' }}">
+  <div class="row">
+    <div class="field" style="flex:2"><label>Business name</label><input type="text" name="name" value="{{ nap.name if nap else '' }}" required></div>
+    <div class="field"><label>Phone</label><input type="tel" name="phone" value="{{ nap.phone if nap else '' }}"></div>
+    <div class="field"><label>Website</label><input type="url" name="website" value="{{ nap.website if nap else '' }}"></div>
+  </div>
+  <div class="row">
+    <div class="field" style="flex:2"><label>Street</label><input type="text" name="street" value="{{ nap.street if nap else '' }}"></div>
+    <div class="field"><label>City</label><input type="text" name="city" value="{{ nap.city if nap else '' }}"></div>
+    <div class="field"><label>State</label><input type="text" name="state" value="{{ nap.state if nap else '' }}"></div>
+    <div class="field"><label>ZIP</label><input type="text" name="zip" value="{{ nap.zip if nap else '' }}"></div>
+  </div>
+  <div class="row">
+    <div class="field"><label>Industry directories</label><select name="vertical"><option value="">General only</option>{% for k, v in verticals.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div>
+    {% if saved and not place %}<div class="field"><label>…or prefill from a saved business</label>
+      <select onchange="if(this.value) location='/citations?place_id='+this.value"><option value="">Choose…</option>{% for s in saved %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}</select></div>{% endif %}
+  </div>
+  <button class="primary" type="submit">Run audit</button> <span class="hint">Takes a few minutes; results fill in as each batch of directories is checked.</span>
+</form>
+{% if audits %}
+<div class="card"><h2>Previous audits</h2>
+  <table><tr><th>Business</th><th>Status</th><th class="num">Score</th><th>Date</th></tr>
+  {% for a in audits %}<tr><td><a href="/citations/{{ a.id }}">{{ a.business.name }}</a></td><td><span class="badge">{{ a.status }}</span></td>
+    <td class="num">{{ (a.grade ~ " · " ~ a.score) if a.score is not none else "—" }}</td><td class="hint">{{ (a.created_at or "")[:10] }}</td></tr>{% endfor %}
+  </table></div>
+{% endif %}
+{% endblock %}

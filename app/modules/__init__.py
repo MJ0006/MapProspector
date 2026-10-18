@@ -1,7 +1,7 @@
 """Feature modules. Each exposes `router` from its routes.py."""
 import importlib
 
-MODULES = ["leads", "rank", "crm", "audit", "aivis", "clients", "gbp"]
+MODULES = ["leads", "rank", "crm", "audit", "aivis", "clients", "gbp", "citations"]
 
 
 def routers():

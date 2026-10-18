@@ -1,0 +1,43 @@
+{% set c = sum.counts %}
+<div class="grid grid-4">
+  <div class="card stat"><b class="grade">{{ a.grade or "—" }}</b><span>{{ (a.score ~ "/100") if a.score is not none else "Not scored yet" }} · score = (consistent + ½ × with issues) ÷ checked</span></div>
+  <div class="card stat"><b class="check-pass">{{ c.live }}</b><span>Listed and consistent</span></div>
+  <div class="card stat"><b class="check-fail">{{ c.wrong }}</b><span>Listed with issues</span></div>
+  <div class="card stat"><b>{{ c.missing }}</b><span>Not found by the check{% if c.pending %} · {{ c.pending }} still checking{% endif %}</span></div>
+</div>
+{% if sum.claimable %}<div class="notice warn">{{ sum.claimable }} listing{{ "s" if sum.claimable > 1 }} appear unclaimed, so anyone can suggest edits.</div>{% endif %}
+<div class="card">
+  <h2>Field accuracy across found listings</h2>
+  <table><tr><th>Field</th><th class="num">Correct / present</th><th class="num">Wrong</th><th class="num">Missing</th></tr>
+  {% for f in field_names %}{% set v = sum.fields[f] %}{% if v.ok or v.err or v.miss %}
+    <tr><td>{{ f | capitalize }}</td><td class="num">{{ v.ok }}</td><td class="num {{ 'check-fail' if v.err }}">{{ v.err }}</td><td class="num">{{ v.miss }}</td></tr>
+  {% endif %}{% endfor %}</table>
+</div>
+<div class="card">
+  <h2>Directories</h2>
+  <div class="table-wrap"><table>
+    <tr><th>Directory</th><th>Status</th><th>What differs</th><th>Listing</th>{% if editable %}<th></th>{% endif %}</tr>
+    {% for l in listings %}
+    <tr>
+      <td><b>{{ l.directory }}</b>{% if l.claimable == 1 %} <span class="badge warn">unclaimed</span>{% endif %}<div class="hint">{{ l.checked_by or "" }}</div></td>
+      <td><span class="badge {{ 'good' if l.status == 'live' else 'bad' if l.status == 'wrong' else 'info' if l.status == 'pending' else '' }}">{{ {"live": "consistent", "wrong": "issues", "missing": "not found", "pending": "checking", "unavailable": "check failed"}[l.status] }}</span></td>
+      <td class="hint">{% for f, v in l.fields_d.items() %}{% if v.status == "mismatch" %}<div><b>{{ f }}</b>: shows {{ v.found }}</div>{% elif v.status == "absent" %}<div><b>{{ f }}</b>: missing</div>{% elif f == "error" %}<div>{{ v.found }}</div>{% endif %}{% endfor %}</td>
+      <td>{% if l.listing_url %}<a href="{{ l.listing_url }}" target="_blank" rel="noopener">view</a>{% endif %}</td>
+      {% if editable %}<td>
+        <details><summary class="btn-sm">Edit</summary>
+          <form method="post" action="/citations/listings/{{ l.id }}" style="min-width:260px;margin-top:6px">
+            <div class="field"><select name="status">{% for s in ["live", "wrong", "missing", "pending"] %}<option {% if l.status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
+            <div class="field"><input type="url" name="listing_url" value="{{ l.listing_url or '' }}" placeholder="Listing URL"></div>
+            <p class="hint">Or enter what the listing shows and it will be compared for you:</p>
+            <div class="field"><input type="text" name="name" placeholder="Name on listing"></div>
+            <div class="field"><input type="text" name="address" placeholder="Address on listing"></div>
+            <div class="field"><input type="text" name="phone" placeholder="Phone on listing"></div>
+            <div class="field"><input type="text" name="website" placeholder="Website on listing"></div>
+            {% if tracker %}<div class="field"><label>Submission</label><select name="submission_status">{% for s in ["todo", "submitted", "live", "rejected"] %}<option {% if l.submission_status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>{% endif %}
+            <button class="btn-sm" type="submit">Save</button>
+          </form></details></td>{% endif %}
+    </tr>
+    {% endfor %}
+  </table></div>
+  <p class="hint">"Not found" means this check could not verify a listing, not that none exists. Listings were read from the directories' public pages on the date shown.</p>
+</div>
