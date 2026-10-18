@@ -29,7 +29,7 @@
       <td><b>{{ b.name }}</b><div class="hint">{{ b.address or "" }}</div></td>
       <td class="hint">{{ b.primary_category or "" }}</td>
       <td class="num">{{ b.rating or "—" }}</td><td class="num">{{ b.review_count if b.review_count is not none else "—" }}</td>
-      <td>{% if b.website %}<a href="{{ b.website }}" target="_blank" rel="noopener">visit</a>{% else %}<span class="badge bad">none</span>{% endif %}</td>
+      <td>{% if b.website %}<a href="{{ b.website | safe_url }}" target="_blank" rel="noopener">visit</a>{% else %}<span class="badge bad">none</span>{% endif %}</td>
       <td>{{ b.phone or "" }}</td>
       <td>{% for f in b.flags %}<span class="badge warn">{{ f }}</span> {% endfor %}</td>
       <td>

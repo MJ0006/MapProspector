@@ -9,7 +9,7 @@ from app import db, journal, mailer
 from app.modules.crm import automations, forms_routes, pipeline, questionnaires
 from app.modules.crm import automations_routes
 from app.uploads import read_limited
-from app.web import _localtime, redirect, render, safe_back
+from app.web import _localtime, redirect, render, safe_back, row_or_404
 
 router = APIRouter()
 router.include_router(pipeline.router)
@@ -185,7 +185,7 @@ def task_new(title: str = Form(...), due_at: str = Form(""), contact_id: str = F
 
 @router.post("/crm/tasks/{tid}/done")
 def task_done(tid: int, back: str = Form("/crm/tasks")):
-    t = db.one("SELECT * FROM tasks WHERE id = ?", tid)
+    t = row_or_404("tasks", tid)
     db.update("tasks", tid, done=0 if t["done"] else 1)
     if t["contact_id"] and not t["done"]:
         log_activity(t["contact_id"], "task", f"Done: {t['title']}")
@@ -217,6 +217,8 @@ def outbox_action(oid: int, action: str, body: str = Form(None), subject: str = 
                   to_addr=(to_addr.strip() if to_addr is not None else m["to_addr"]))
         m = db.one("SELECT * FROM outbox WHERE id = ?", oid)
     if action == "approve":
+        if m["status"] != "draft":  # back button / double click: never send again
+            return redirect(f"/crm/outbox?status={m['status']}")
         problem = mailer.approval_problem(m)
         if problem:
             raise HTTPException(400, problem)

@@ -120,7 +120,7 @@ def test_chain_branch_not_matched_by_name():
 
 def test_background_drafting(client, monkeypatch):
     co = db.insert("companies", name="Acme", is_client=1)
-    monkeypatch.setattr(ai, "available", lambda: True)
+    monkeypatch.setattr(ai, "available", lambda **k: True)
     monkeypatch.setattr(ai, "ask", lambda p, **k: "Post text")
     client.post(f"/clients/{co}/posts/draft", data={"topic": "t", "count": "3"})
     rows = db.all("SELECT * FROM gbp_posts")
@@ -212,7 +212,7 @@ def test_cold_email_needs_postal_address_and_recipient():
 
 def test_decisions_feed_lessons_into_prompts(client, monkeypatch):
     co = db.insert("companies", name="Acme Plumbing", is_client=1)
-    monkeypatch.setattr(ai, "available", lambda: True)
+    monkeypatch.setattr(ai, "available", lambda **k: True)
     monkeypatch.setattr(ai, "ask", lambda p, **k: "Thank you so much for your review!!! We loved it!")
     rid = db.insert("reviews", company_id=co, external_id="r1", rating=5, text="Great job", reply_status="none")
     client.post(f"/gbp/reviews/{rid}/draft")
@@ -239,7 +239,7 @@ def test_decisions_feed_lessons_into_prompts(client, monkeypatch):
 
 def test_rejected_post_and_outbox_decisions(client, monkeypatch):
     co = db.insert("companies", name="Acme", is_client=1)
-    monkeypatch.setattr(ai, "available", lambda: True)
+    monkeypatch.setattr(ai, "available", lambda **k: True)
     monkeypatch.setattr(ai, "ask", lambda p, **k: "AI post")
     client.post(f"/clients/{co}/posts/draft", data={"topic": "t"})
     pid = db.one("SELECT id FROM gbp_posts")["id"]

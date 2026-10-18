@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="page-head">
-  <div><h1>Content tools</h1><p>Local SEO Brain prompts, run by Claude on your subscription. Drafts use only the facts you enter and follow the brain's rules.</p></div>
+  <div><h1>Content tools</h1><p>Local SEO Brain prompts, run by your AI platform (Settings → AI platforms). Drafts use only the facts you enter and follow the brain's rules.</p></div>
 </div>
-{% if not modules.claude %}<div class="notice warn">The <code>claude</code> CLI was not found. Install Claude Code and log in to use these tools.</div>{% endif %}
+{% if not modules.ai %}<div class="notice warn">No AI platform is ready. Set one up on <a href="/settings#ai">Settings → AI platforms</a> to use these tools.</div>{% endif %}
 <div class="grid grid-1-2">
   <div class="card">
     {% for group, names in groups.items() %}
@@ -33,7 +33,7 @@
       <div class="field"><label>Services</label><textarea name="services" style="min-height:60px"></textarea></div>
       <div class="field"><label>Audience</label><input type="text" name="audience"></div>
       <div class="field"><label>Other confirmed facts (existing copy, page text, data exports…)</label><textarea name="extra"></textarea></div>
-      <button class="primary" type="submit">Draft with Claude</button> <span class="hint">Takes up to a minute.</span>
+      <button class="primary" type="submit">Draft with AI</button> <span class="hint">Takes up to a minute.</span>
     </form>
     {% else %}<div class="empty">Pick a prompt on the left.</div>{% endif %}
   </div>

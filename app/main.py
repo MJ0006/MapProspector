@@ -20,7 +20,7 @@ INTEGRATIONS = [
     ("places", "Google Places API (New)", "Lead search, rank scans (Places mode), profile-lock monitoring"),
     ("dataforseo", "DataForSEO", "True per-point Maps SERP scans, keyword volume / CPC / difficulty"),
     ("google_oauth", "Google OAuth (GBP + Search Console)", "Publish posts, replies, photos; GBP insights; Search Console data"),
-    ("claude", "Claude CLI (your subscription)", "All AI drafts, Claude engine in AI visibility"),
+    ("claude", "Claude Code CLI (your subscription)", "Claude engine in AI visibility (drafts: see AI platforms below)"),
     ("openai", "OpenAI", "ChatGPT engine in AI visibility"),
     ("perplexity", "Perplexity", "Perplexity engine in AI visibility"),
     ("gemini", "Google Gemini", "Gemini engine in AI visibility"),
@@ -80,10 +80,12 @@ def notices_seen(request: Request):
 
 
 @app.get("/settings")
-def settings_page(request: Request, saved: int = 0):
+def settings_page(request: Request, saved: int = 0, signin: str = "", opened: int = 1):
+    from app.modules.ai_platforms.routes import card_context
     google_connected = db.one("SELECT 1 FROM oauth_tokens WHERE provider = 'google'") is not None
     return render(request, "settings.html", title="Settings", integrations=INTEGRATIONS,
-                  saved=saved, google_connected=google_connected, env_file=settings.ENV_FILE)
+                  saved=saved, google_connected=google_connected, env_file=settings.ENV_FILE,
+                  signin=signin, signin_opened=opened, **card_context())
 
 
 @app.post("/settings")

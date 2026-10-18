@@ -16,7 +16,7 @@
     <form method="post" action="/rank/{{ scan.id }}/rerun"><button>Run again</button></form>
     <form method="post" action="/rank/{{ scan.id }}/share"><button>Share link</button></form>
     <button type="button" onclick="window.print()">Print / PDF</button>
-    {% if place %}<a class="btn" href="/leads/save?place_id={{ place.id }}">Save as lead</a>{% endif %}
+    {% if place %}<form method="post" action="/leads/save" style="display:inline"><input type="hidden" name="place_id" value="{{ place.id }}"><button>Save as lead</button></form>{% endif %}
     <form method="post" action="/rank/{{ scan.id }}/delete" onsubmit="return confirm('Delete scan?')"><button class="btn-danger">Delete</button></form>
   </div>
 </div>

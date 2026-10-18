@@ -38,4 +38,51 @@
     </form>
   </div>
 </div>
+<div class="card" id="ai" style="margin-top:16px">
+  <h2>AI platforms</h2>
+  <p class="hint">Drafts, Ask and citation lookups use the first platform in this order that is ready. When one hits its
+    usage limit or isn't signed in, the next one answers and the switch is recorded in the Journal. Citation lookups need web
+    search, so they skip Ollama. AI visibility always measures each engine itself and never falls back.</p>
+  {% if signin %}
+  <div class="notice {{ 'good' if signin_opened else 'warn' }}">
+    {% if signin_opened %}A terminal opened for signing in. Finish there (your browser opens for the account login), then reload this page.
+    {% else %}Couldn't open a terminal here. Run this in a terminal on this computer: <code>{% for p in ai_platforms if p.name == signin %}{{ p.signin }}{% endfor %}</code>{% endif %}
+  </div>
+  {% endif %}
+  <div class="table-wrap"><table>
+    <tr><th>Order</th><th>Platform</th><th>Status</th><th>Can</th><th></th></tr>
+    {% for p in ai_platforms %}
+    <tr>
+      <td style="white-space:nowrap">{% if p.on %}{{ loop.index }}
+        <form method="post" action="/settings/ai/{{ p.name }}/move" style="display:inline"><input type="hidden" name="direction" value="up"><button class="btn-sm" title="Move up" {{ 'disabled' if loop.first }}>↑</button></form>
+        <form method="post" action="/settings/ai/{{ p.name }}/move" style="display:inline"><input type="hidden" name="direction" value="down"><button class="btn-sm" title="Move down">↓</button></form>
+        {% else %}<span class="hint">off</span>{% endif %}</td>
+      <td><b>{{ p.label }}</b></td>
+      <td>
+        {% if not p.installed %}<span class="badge">not installed</span><div class="hint">{{ p.install }}</div>
+        {% elif p.paused %}<span class="badge warn">{{ 'usage limit' if p.paused.kind == 'limit' else 'not signed in' }}</span>
+          <div class="hint">Skipped until {{ p.paused.until | localtime }}. {{ p.paused.reason[:140] }}</div>
+        {% elif p.signed_in is sameas false %}<span class="badge warn">not signed in</span>
+        {% elif p.signed_in %}<span class="badge good">ready</span>
+        {% else %}<span class="badge info">installed</span><div class="hint">Sign-in is checked on first use.</div>{% endif %}
+      </td>
+      <td class="hint">drafts{% if p.web %}, web search{% endif %}{% if p.mcp %}, Ask{% endif %}</td>
+      <td><div class="actions">
+        {% if p.installed and p.signin %}<form method="post" action="/settings/ai/{{ p.name }}/signin"><button class="btn-sm">Sign in</button></form>{% endif %}
+        {% if p.paused %}<form method="post" action="/settings/ai/{{ p.name }}/resume"><button class="btn-sm">Try again now</button></form>{% endif %}
+        <form method="post" action="/settings/ai/{{ p.name }}/toggle"><button class="btn-sm">{{ 'Turn off' if p.on else 'Turn on' }}</button></form>
+      </div></td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% if ollama_models %}
+  <form method="post" action="/settings/ai/ollama/model" class="actions" style="margin-top:10px">
+    <label class="hint" for="ollama-model">Local model</label>
+    <select id="ollama-model" name="model">{% for m in ollama_models %}<option {{ 'selected' if m == ollama_model }}>{{ m }}</option>{% endfor %}</select>
+    <button class="btn-sm" type="submit">Use this model</button>
+  </form>
+  {% endif %}
+  <p class="hint" style="margin-top:10px">Signing in happens in each platform's own tool with your own account; MapProspector never sees your password.
+    Subscription limits and terms are set by each company. Keep this app for your own use.</p>
+</div>
 {% endblock %}

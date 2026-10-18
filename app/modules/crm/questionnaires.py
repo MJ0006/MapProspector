@@ -4,10 +4,24 @@ import secrets
 
 from fastapi import APIRouter, Form, HTTPException, Request
 
-from app import brain, db, settings
+import logging
+from urllib.parse import urlencode
+
+from app import brain, db, journal, security, settings
 from app.web import redirect, render
 
 router = APIRouter()
+log = logging.getLogger("mapprospector.questionnaires")
+
+
+def link(token: str, contact_id: int | None = None, company_id: int | None = None) -> str:
+    """Public link (path + query). Ties answers to a contact or client only when signed, so nobody can
+    send answers into another client's vault by editing the link."""
+    if not contact_id and not company_id:
+        return f"/q/{token}"
+    params = {k: v for k, v in (("c", contact_id), ("co", company_id)) if v}
+    params["s"] = security.sign("q", token, contact_id or "", company_id or "")
+    return f"/q/{token}?{urlencode(params)}"
 
 TYPES = {"text": "Short text", "longtext": "Paragraph", "choice": "Multiple choice (one)",
          "multi": "Checkboxes (many)", "likert": "Scale 1–5"}
@@ -48,8 +62,9 @@ def questionnaires(request: Request):
                        "LEFT JOIN contacts c ON c.id = r.contact_id ORDER BY r.id DESC LIMIT 50")
     starter = "\n".join(f"{q['label']} | {q['type']}" + (f" | {', '.join(q['options'])}" if q.get("options") else "")
                         for q in STARTER)
+    clients = db.all("SELECT id, name FROM companies WHERE is_client = 1 ORDER BY name")
     return render(request, "crm/questionnaires.html", title="Questionnaires", rows=rows, responses=responses,
-                  types=TYPES, starter=starter, base=settings.PUBLIC_BASE_URL)
+                  types=TYPES, starter=starter, base=settings.PUBLIC_BASE_URL, clients=clients, link=link)
 
 
 @router.post("/crm/questionnaires")
@@ -81,8 +96,9 @@ def _q(token: str) -> dict:
 
 
 @router.get("/q/{token}")
-def public_q(request: Request, token: str, c: int | None = None, co: int | None = None, sent: int = 0):
-    return render(request, "crm/questionnaire_public.html", title=_q(token)["name"], q=_q(token), c=c, co=co, sent=sent)
+def public_q(request: Request, token: str, c: str = "", co: str = "", s: str = "", sent: int = 0):
+    q = _q(token)
+    return render(request, "crm/questionnaire_public.html", title=q["name"], q=q, c=c, co=co, s=s, sent=sent)
 
 
 @router.post("/q/{token}")
@@ -94,6 +110,12 @@ async def public_q_submit(request: Request, token: str):
         answers[qq["id"]] = form.getlist(qq["id"]) if qq["type"] == "multi" else (form.get(qq["id"]) or "")
     contact_id = int(form["c"]) if form.get("c", "").isdigit() else None
     company_id = int(form["co"]) if form.get("co", "").isdigit() else None
+    if (contact_id or company_id) and not security.signed(form.get("s", ""), "q", token, contact_id or "", company_id or ""):
+        contact_id = company_id = None  # unsigned or edited link: keep the answers, don't attach them to anyone
+    if contact_id and not db.one("SELECT 1 FROM contacts WHERE id = ?", contact_id):
+        contact_id = None
+    if company_id and not db.one("SELECT 1 FROM companies WHERE id = ?", company_id):
+        company_id = None
     if contact_id and not company_id:
         contact = db.one("SELECT company_id FROM contacts WHERE id = ?", contact_id)
         company_id = contact["company_id"] if contact else None
@@ -111,5 +133,9 @@ async def public_q_submit(request: Request, token: str):
             a = answers.get(qq["id"])
             lines += [f"## {qq['label']}", ", ".join(a) if isinstance(a, list) else (a or "(no answer)"), ""]
         path.write_text("\n".join(lines), encoding="utf-8")
-        brain.ingest("source", company["vault_slug"], path, label=f"Onboarding questionnaire {q['name']}")
+        try:
+            brain.ingest("source", company["vault_slug"], path, label=f"Onboarding questionnaire {q['name']}")
+        except brain.BrainError as exc:  # the answers are saved; the vault can be updated from the response page
+            journal.failure("questionnaires", "add_to_vault", exc, subject_type="questionnaire_response",
+                            subject_id=rid, company_id=company["id"])
     return redirect(f"/q/{token}?sent=1")

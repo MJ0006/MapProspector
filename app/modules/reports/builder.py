@@ -44,7 +44,7 @@ def gather(company_id: int, sections: list[str], days: int) -> dict:
         data["rankings"] = rows
     if "reviews" in sections:
         data["reviews"] = {**reviews.stats(company_id),
-                           "new": db.all("SELECT rating, text, review_date FROM reviews WHERE company_id = ? AND created_at >= ? "
+                           "new": db.all("SELECT rating, text, review_date FROM reviews WHERE company_id = ? AND COALESCE(review_date, created_at) >= ? "
                                          "ORDER BY review_date DESC LIMIT 10", company_id, since)}
     if "activity" in sections:
         data["activity"] = {
@@ -88,6 +88,10 @@ def build_run(report_id: int, note: str = "") -> int:
 def send_run(run_id: int) -> None:
     run = db.one("SELECT * FROM report_runs WHERE id = ?", run_id)
     rep = db.one("SELECT * FROM reports WHERE id = ?", run["report_id"])
+    if not (rep["recipients"] or "").strip():
+        return  # nobody to email: stays approved (download / share link only)
+    if not db.claim("report_runs", run_id, ("approved",), "sending"):
+        return
     co = db.one("SELECT name FROM companies WHERE id = ?", rep["company_id"])
     link = f"{settings.PUBLIC_BASE_URL}/share/report/{run['token']}"
     for to in [e.strip() for e in (rep["recipients"] or "").split(",") if e.strip()]:
@@ -95,6 +99,11 @@ def send_run(run_id: int) -> None:
                      f"Hi,\n\nYour latest report for {co['name']} is ready:\n{link}\n\nThanks,\n{brand()['name']}",
                      origin="report", approved=True)
     db.update("report_runs", run_id, status="sent", sent_at=db.now())
+
+
+@jobs.on_startup
+def interrupted_report_sends() -> None:
+    db.run("UPDATE report_runs SET status = 'approved' WHERE status = 'sending'")  # only queues emails: safe to redo
 
 
 def next_run_at(schedule: str, after: datetime) -> str | None:

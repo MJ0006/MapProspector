@@ -4,7 +4,7 @@
   <div><h1>Journal</h1><p>Everything the app did, what you decided about AI drafts, and every failure. Approved lessons are added to future drafts, so they improve as you edit.</p></div>
   <div class="actions">{% for d in [7, 30, 90] %}<a class="btn {{ 'btn-primary' if f.days == d else '' }}" href="?days={{ d }}">{{ d }} days</a>{% endfor %}</div>
 </div>
-{% if request.query_params.get("learning") %}<div class="notice">Claude is reading your recent edits… proposed lessons appear below in a minute.</div>{% endif %}
+{% if request.query_params.get("learning") %}<div class="notice">The AI is reading your recent edits… proposed lessons appear below in a minute.</div>{% endif %}
 <div class="grid grid-3">
   <div class="card">
     <h2>AI drafts: what you did with them</h2>
@@ -18,12 +18,12 @@
     {% else %}<div class="empty">No failures in this period.</div>{% endfor %}
   </div>
   <div class="card">
-    <h2>Claude calls</h2>
+    <h2>AI calls</h2>
     <p>{{ stats.ai.n or 0 }} calls · {{ stats.ai.failed or 0 }} failed{% if stats.ai.avg_ms %} · {{ ((stats.ai.avg_ms or 0) / 1000) | round(1) }} s average{% endif %}</p>
     <form method="post" action="/journal/learn" class="row" style="margin-top:12px">
       <div class="field"><label>Learn from my edits</label><select name="area">{% for k, v in draft_areas.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div>
       <div class="field"><label>For</label><select name="company_id"><option value="">All clients</option>{% for c in companies %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></div>
-      <div class="field" style="align-self:end"><button type="submit" {% if not modules.claude %}disabled{% endif %}>Propose lessons</button></div>
+      <div class="field" style="align-self:end"><button type="submit" {% if not modules.ai %}disabled{% endif %}>Propose lessons</button></div>
     </form>
     <p class="hint">Also runs weekly on its own when there are 3+ new edits. Needs at least 2 edited or rejected drafts.</p>
   </div>

@@ -150,8 +150,8 @@ def run_audit(audit_id: int, batch: int = 5) -> None:
 
 
 def start(audit_id: int) -> None:
-    """Queue automatic checks when the claude CLI is available; otherwise the audit is filled in by hand."""
-    if ai.available():
+    """Queue automatic checks when an AI platform with web search is ready; otherwise it's filled in by hand."""
+    if ai.available(web=True):
         jobs.submit(run_audit, audit_id)
     else:
         db.update("citation_audits", audit_id, status="manual")

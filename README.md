@@ -9,12 +9,14 @@ It covers the feature set of LeadSnap (found by inspecting leadsnap.com's public
 | **Prospecting** | Lead search (Google Places) with opportunity flags · geo-grid **heat maps** with competitor "flip the map", quadrants, schedules, trends, share links, PDF · website and listing **audit** · **AI visibility** checker · **citation audit** |
 | **CRM** | Contacts and timeline · Kanban pipelines · tasks and calendar · **outbox with approval** · automations (triggers, filters, waits, actions) · lead forms with spam filters · onboarding questionnaires |
 | **Client SEO** | A Local SEO Brain vault per client (Draft scorecard, roadmap, weekly report) · AI posts · review replies · review requests (no gating) · photo drips · profile lock · insights and Search Console · citation profile and tracker · branded scheduled reports |
-| **AI** | Every draft is written by **your Claude Code subscription** through the `claude` CLI (no API key) · *Ask* page · MCP server so Claude Code can query your data and start scans |
-| **Journal** | Every job, Claude call, decision on AI drafts (used as-is / edited / rejected) and failure is recorded. Claude turns your edits into **lessons** you approve, and approved lessons are added to future drafts, so drafts improve as you use the app. |
+| **AI** | Drafts are written with **your own subscriptions**: Claude (Claude Code), ChatGPT (Codex CLI), Gemini (Gemini CLI), or **local models** (Ollama), in an order you choose. When one hits its limit the next takes over · *Ask* page · MCP server so Claude Code can query your data and start scans |
+| **Journal** | Every job, AI call (with the platform that answered), decision on AI drafts (used as-is / edited / rejected) and failure is recorded. The AI turns your edits into **lessons** you approve, and approved lessons are added to future drafts on every platform, so drafts improve as you use the app. |
+
+**New to the app?** Open **Guide** in the app's menu (`/guide`). It explains every feature with screenshots, and has click-by-click steps for each API key and AI platform.
 
 ## Run it in VS Code
 
-Requirements: Python 3.11+, git, and [Claude Code](https://claude.com/claude-code) installed and logged in (needed for the AI features).
+Requirements: Python 3.11+, git, and at least one AI platform for the AI features (see [AI platforms](#ai-platforms)).
 
 ```bash
 git clone --recurse-submodules https://github.com/MJ0006/MapProspector.git
@@ -39,7 +41,7 @@ If you cloned without `--recurse-submodules`, run `git submodule update --init` 
 
 **Get the installer:** on GitHub, open **Actions → Windows app**, pick the latest green run (or click **Run workflow**), and download **MapProspector-Setup** under *Artifacts*. Unzip it and run `MapProspector-Setup-<version>.exe`. The installer isn't code-signed, so Windows SmartScreen shows a warning the first time: click **More info → Run anyway**. Pushing a tag like `desktop-v1.0.0` also puts the installer on a GitHub Release.
 
-- **Claude:** install [Claude Code](https://claude.com/claude-code) on the laptop and log in once (`claude` in a terminal). The app finds it on PATH or in its usual install folders. If it's somewhere else, set `CLAUDE_PATH` in the app's `.env`.
+- **AI:** install at least one [AI platform](#ai-platforms) on the laptop and sign in (Settings → AI platforms → **Sign in** opens it for you). The app finds the tools on PATH or in their usual install folders.
 - **Keys:** **File → API keys and settings (.env)** opens the app's own `.env`, then **File → Restart server**.
 - **Your data** (database, client vaults, uploads, `.env`) lives in `%APPDATA%\MapProspector`. Updating or uninstalling the app leaves it in place. To bring data over from a VS Code checkout, quit the app and copy the contents of `./data` into `%APPDATA%\MapProspector\data`.
 - **Closing the window** keeps MapProspector in the system tray, so schedules, automations and review syncs keep running. Right-click the tray icon to quit, or turn on **Start when I sign in to Windows**.
@@ -50,6 +52,8 @@ If you cloned without `--recurse-submodules`, run `git submodule update --init` 
 To try the desktop shell from a checkout: `cd desktop && npm install && npm start`. It uses your own Python; set `MAPPROSPECTOR_PYTHON` to your venv's `python.exe`. The shell is based on electron-starter-template, which is licensed for a single product (see `desktop/TEMPLATE-LICENSE`). Keep this repo private.
 
 ## Keys (all optional)
+
+Step-by-step setup for each key is in the in-app **Guide** (`/guide`, section 3).
 
 Every module switches itself off when its key is missing. **Settings** shows what is on.
 
@@ -63,7 +67,26 @@ Every module switches itself off when its key is missing. **Settings** shows wha
 
 **With no keys at all**, the CRM, forms, automations, client vaults, reports and content tools all work. Heat maps and lead search run on clearly labelled **demo data**.
 
-**About your Claude subscription:** the app runs `claude -p` on your machine, so drafts, citation lookups, Claude in AI visibility, and *Ask* all count toward your Claude plan's usage limits. Keep this app personal; don't host it for other people.
+## AI platforms
+
+Drafts, *Ask* and citation lookups use your own subscriptions through each company's official command-line tool, or a model running on your computer. You sign in once in that tool, in your browser. MapProspector never sees your passwords and needs no API key for these.
+
+| Platform | Install | Sign in | Good for |
+|---|---|---|---|
+| Claude | [Claude Code](https://claude.com/claude-code) | run `claude` once | everything |
+| ChatGPT | `npm install -g @openai/codex` | `codex login` (Sign in with ChatGPT) | everything |
+| Gemini | `npm install -g @google/gemini-cli` | run `gemini` once, choose *Login with Google* | everything |
+| Local | [Ollama](https://ollama.com), then e.g. `ollama pull llama3.1` | none | drafts only (no web search, no app data), no limits |
+
+**Settings → AI platforms** sets the order and turns platforms on or off. It also picks your local model and has a **Sign in** button that opens the platform's login in a terminal.
+
+The first ready platform answers. If it reports a usage limit, it's skipped until its reset time (or for an hour). If it isn't signed in, it's skipped for 30 minutes. The next platform answers instead, and the notice bar says so, for example *"Claude usage limit reached: using ChatGPT until 15:00"*. Every switch is in the Journal.
+
+Citation lookups need web search, so they skip Ollama. The *Ask* page reads your data through **read-only** tools, so no platform can start scans or change anything. *AI visibility* measures each engine's own answers, so it never falls back.
+
+If a tool is installed somewhere unusual, set `CLAUDE_PATH`, `CODEX_PATH` or `GEMINI_PATH` in `.env`. Ollama on another address: `OLLAMA_HOST`.
+
+Every call counts toward that subscription's limits, and each company sets its own terms. Keep this app personal; don't host it for other people.
 
 ## Rules the app follows (from Local SEO Brain)
 
@@ -85,13 +108,17 @@ This repo has a `.mcp.json`, so Claude Code opened in this folder can use the `m
 
 Try asking: *"Which competitor owns the north side for roof repair in my latest scan?"*
 
+## Guide screenshots
+
+`scripts/guide_screenshots.py` runs the app on demo data and refreshes the images in `app/static/guide/`. Re-run it after UI changes; it needs Playwright with Chromium, which is a dev-only tool.
+
 ## Tests
 
 ```bash
 python3 -m pytest -q
 ```
 
-External APIs are tested against recorded responses in `tests/fixtures`, and tests never call the real `claude` CLI.
+External APIs are tested against recorded responses in `tests/fixtures`, and tests never call a real AI (`claude`, `codex` and `gemini` are fake programs in the tests, and Ollama is a fake server).
 
 ## Smoke test on your PC (live services)
 

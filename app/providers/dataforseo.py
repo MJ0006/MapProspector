@@ -27,12 +27,16 @@ def _post(path: str, payload: list, client: httpx.Client | None) -> dict:
     http = client or httpx.Client(timeout=90)
     try:
         r = http.post(f"{BASE}{path}", json=payload, auth=_auth())
+    except httpx.HTTPError as exc:
+        raise DataForSEOError(f"Could not reach DataForSEO: {exc}") from exc
     finally:
         if client is None:
             http.close()
     if r.status_code != 200:
         raise DataForSEOError(f"DataForSEO {path} failed ({r.status_code}): {r.text[:300]}")
     data = r.json()
+    if data.get("status_code") not in (20000, None):  # account-level errors (balance, auth) come with HTTP 200
+        raise DataForSEOError(f"DataForSEO error {data.get('status_code')}: {data.get('status_message')}")
     task = (data.get("tasks") or [{}])[0]
     if task.get("status_code") not in (20000, None):
         raise DataForSEOError(f"DataForSEO task error {task.get('status_code')}: {task.get('status_message')}")

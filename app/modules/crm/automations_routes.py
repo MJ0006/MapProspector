@@ -5,7 +5,7 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from app import db
 from app.modules.crm import automations
 from app.modules.crm.pipeline import pipelines_with_stages
-from app.web import redirect, render
+from app.web import redirect, render, row_or_404
 
 router = APIRouter()
 
@@ -41,6 +41,8 @@ def automation_save(aid: int, name: str = Form(...), trigger: str = Form(...), t
         cfg, flt, acts = json.loads(trigger_config or "{}"), json.loads(filters or "[]"), json.loads(actions or "[]")
     except ValueError:
         raise HTTPException(400, "Automation definition is not valid JSON")
+    if not isinstance(acts, list) or not all(isinstance(a, dict) for a in acts):
+        raise HTTPException(400, "Actions must be a list of steps")
     for act in acts:
         if act.get("type") not in automations.ACTIONS:
             raise HTTPException(400, f"Unknown action {act.get('type')}")
@@ -54,7 +56,7 @@ def automation_save(aid: int, name: str = Form(...), trigger: str = Form(...), t
 
 @router.post("/crm/automations/{aid}/duplicate")
 def automation_duplicate(aid: int):
-    a = db.one("SELECT * FROM automations WHERE id = ?", aid)
+    a = row_or_404("automations", aid)
     new = db.insert("automations", name=a["name"] + " (copy)", trigger=a["trigger"], trigger_config=a["trigger_config"],
                     filters=a["filters"], actions=a["actions"], active=0, created_at=db.now())
     return redirect(f"/crm/automations/{new}")
@@ -68,6 +70,6 @@ def automation_delete(aid: int):
 
 @router.post("/crm/runs/{rid}/stop")
 def run_stop(rid: int):
-    r = db.one("SELECT * FROM automation_runs WHERE id = ?", rid)
+    r = row_or_404("automation_runs", rid)
     db.update("automation_runs", rid, status="stopped", updated_at=db.now())
     return redirect(f"/crm/automations/{r['automation_id']}")

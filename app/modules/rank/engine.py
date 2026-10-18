@@ -91,7 +91,8 @@ def provider_search(provider: str, surface: str, keyword: str, lat: float, lng: 
 
 def create_scans(place_id: int | None, keywords: list[str], *, surface: str, provider: str,
                  size: int, spacing_m: float, shape: str = "square", polygon=None,
-                 center: tuple[float, float] | None = None, schedule_id: int | None = None) -> list[int]:
+                 center: tuple[float, float] | None = None, schedule_id: int | None = None,
+                 run_now: bool = True) -> list[int]:
     if provider not in PROVIDERS:
         raise ValueError("Unknown provider")
     if provider not in available_providers():
@@ -110,7 +111,8 @@ def create_scans(place_id: int | None, keywords: list[str], *, surface: str, pro
                         center_lat=center[0], center_lng=center[1], status="queue",
                         stats={"polygon": polygon} if polygon else None, created_at=db.now())
         ids.append(sid)
-        jobs.submit(run_scan, sid)
+        if run_now:
+            jobs.submit(run_scan, sid)
     return ids
 
 
@@ -306,9 +308,15 @@ def run_schedule(schedule_id: int) -> list[int]:
     s = db.one("SELECT * FROM scan_schedules WHERE id = ?", schedule_id)
     g = db.loads(s["grid"], {})
     now = datetime.now(timezone.utc)
+    nxt = next_run(s["recurrence"], s["day"], now)
+    if s["recurrence"] == "biweekly" and s["next_run_at"]:
+        # Keep the 14-day rhythm when this run was late (app closed): don't snap to the next matching weekday.
+        nxt = datetime.fromisoformat(s["next_run_at"]) + timedelta(days=14)
+        while nxt <= now:
+            nxt += timedelta(days=14)
     # Advance first, so a failing schedule (e.g. a removed API key) is retried next period, not every minute.
     db.update("scan_schedules", schedule_id, last_run_at=now.isoformat(timespec="seconds"),
-              next_run_at=next_run(s["recurrence"], s["day"], now).isoformat(timespec="seconds"))
+              next_run_at=nxt.isoformat(timespec="seconds"))
     try:
         ids = create_scans(s["place_id"], db.loads(s["keywords"], []), surface=s["surface"], provider=s["provider"],
                            size=g["size"], spacing_m=g["spacing_m"], shape=g.get("shape", "square"),
@@ -329,6 +337,15 @@ def run_due_schedules() -> None:
             run_schedule(s["id"])
         except ValueError:
             continue  # recorded on the schedule (last_error) and in the journal; the others still run
+
+
+@jobs.on_tick
+def run_queued() -> None:
+    """Scans queued by another process (the MCP server while the app is running) run here, so only one process
+    ever runs scans. run_scan claims each scan, so one also submitted directly can't run twice."""
+    for s in db.all("SELECT id FROM scans WHERE status = 'queue' AND created_at <= ?",
+                    (datetime.now(timezone.utc) - timedelta(seconds=30)).isoformat(timespec="seconds")):
+        jobs.submit(run_scan, s["id"])
 
 
 @jobs.on_startup

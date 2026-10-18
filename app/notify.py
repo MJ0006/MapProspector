@@ -19,7 +19,8 @@ def notices() -> list[dict]:
     now = datetime.now(timezone.utc)
     out = []
     new_reviews = db.all("SELECT r.company_id, c.name, COUNT(*) n FROM reviews r JOIN companies c ON c.id = r.company_id "
-                         "WHERE r.created_at > ? GROUP BY r.company_id", seen)
+                         "WHERE r.created_at > ? AND COALESCE(r.review_date, r.created_at) >= date(?, '-14 days') "
+                         "GROUP BY r.company_id", seen, seen)  # a first sync's years-old reviews aren't "new"
     for r in new_reviews:
         out.append({"level": "info", "text": f"{r['n']} new review{'s' if r['n'] > 1 else ''} for {r['name']}",
                     "href": f"/clients/{r['company_id']}/reviews"})
@@ -41,6 +42,13 @@ def notices() -> list[dict]:
     proposed = db.one("SELECT COUNT(*) n FROM lessons WHERE status = 'proposed'")["n"]
     if proposed:
         out.append({"level": "info", "text": f"{proposed} lesson{'s' if proposed > 1 else ''} to review", "href": "/journal"})
+    from app import ai
+    for p in ai.pauses():
+        until = datetime.fromisoformat(p["until"]).astimezone()
+        when = until.strftime("%H:%M") if until.date() == datetime.now().astimezone().date() else until.strftime("%b %d %H:%M")
+        why = "usage limit reached" if p["kind"] == "limit" else "not signed in"
+        instead = f"using {p['instead']}" if p["instead"] else "no other AI platform is ready"
+        out.append({"level": "warn", "text": f"{p['label']} {why}: {instead} until {when}", "href": "/settings#ai"})
     return out
 
 

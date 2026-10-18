@@ -1,5 +1,5 @@
 """Find leads: search Google for businesses in a niche + area, filter for opportunity, save as leads."""
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from app import db, places_store, settings
@@ -55,10 +55,16 @@ def leads_search(request: Request, niche: str = "", area: str = "", lat: str = "
             r["flags"] = opportunity_flags(r, median_reviews)
         if no_website:
             results = [r for r in results if not r.get("website")]
-        if max_rating:
-            results = [r for r in results if r.get("rating") is None or r["rating"] <= float(max_rating)]
-        if max_reviews:
-            results = [r for r in results if (r.get("review_count") or 0) <= int(max_reviews)]
+        try:
+            rating_cap = float(max_rating) if max_rating else None
+            reviews_cap = int(float(max_reviews)) if max_reviews else None
+        except ValueError:
+            rating_cap = reviews_cap = None
+            error = error or "Max rating and max reviews must be numbers; those filters were skipped."
+        if rating_cap is not None:
+            results = [r for r in results if r.get("rating") is None or r["rating"] <= rating_cap]
+        if reviews_cap is not None:
+            results = [r for r in results if (r.get("review_count") or 0) <= reviews_cap]
         saved = {r["google_place_id"] for r in db.all("SELECT p.google_place_id FROM contacts c JOIN places p "
                                                        "ON p.id = c.place_id")}
         for r in results:
@@ -104,8 +110,8 @@ def save_lead(place_id: int) -> int:
     return cid
 
 
-@router.get("/leads/save")
-def leads_save(place_id: int):
+@router.post("/leads/save")
+def leads_save(place_id: int = Form(...)):  # POST: a link on another website can't create leads
     if not places_store.get(place_id):
         raise HTTPException(404)
     return redirect(f"/crm/contacts/{save_lead(place_id)}")

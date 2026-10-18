@@ -5,7 +5,7 @@ from fastapi import APIRouter, Form, HTTPException, Request
 
 from app import ai, brain, db, jobs, journal, mailer, places_store
 from app.modules.audit import checks
-from app.web import redirect, render
+from app.web import redirect, render, row_or_404
 
 router = APIRouter()
 
@@ -72,7 +72,7 @@ def audit_view(request: Request, aid: int):
 
 @router.post("/audit/{aid}/share")
 def audit_share(aid: int):
-    a = db.one("SELECT * FROM audits WHERE id = ?", aid)
+    a = row_or_404("audits", aid)
     if not a["share_token"]:
         db.update("audits", aid, share_token=secrets.token_urlsafe(16))
     return redirect(f"/audit/{aid}#share")
@@ -113,12 +113,13 @@ def audit_draft_email(aid: int):
         draft = ai.ask_json(outreach_prompt(ctx["place"], db.loads(ctx["a"]["checks"], []), brand()["name"]),
                             purpose="outbox")
     except (ai.AIUnavailable, ValueError) as exc:
-        raise HTTPException(503, f"Could not draft with Claude: {exc}")
+        raise HTTPException(503, f"Could not draft with AI: {exc}")
     oid = mailer.queue("email", contact["id"], contact["email"] or "", draft.get("subject", ""), draft.get("body", ""),
                        origin="audit")
     if oid:
         journal.record("outbox", "outcome", "draft", subject_type="outbox", subject_id=oid,
-                       data={"text": db.one("SELECT body FROM outbox WHERE id = ?", oid)["body"]})
+                       data={"text": db.one("SELECT body FROM outbox WHERE id = ?", oid)["body"],
+                             "platform": ai.last_platform()})
     return redirect("/crm/outbox")
 
 
@@ -140,8 +141,11 @@ def tools_run(request: Request, prompt: str = Form(...), business_name: str = Fo
               audience: str = Form(""), extra: str = Form(""), company_id: str = Form("")):
     facts = {"Business name": business_name, "City / service area": city, "Primary category": category,
              "Services": services, "Website": website, "Audience": audience, "Other confirmed facts": extra}
-    lessons = journal.prompt_block("tools", int(company_id) if company_id else None)
-    full_prompt = brain.build_prompt(prompt, facts, doctrine_no=1 if prompt.startswith("gbp") else 3, extra=lessons)
+    lessons = journal.prompt_block("tools", int(company_id) if company_id.isdigit() else None)
+    try:
+        full_prompt = brain.build_prompt(prompt, facts, doctrine_no=1 if prompt.startswith("gbp") else 3, extra=lessons)
+    except brain.BrainError as exc:
+        raise HTTPException(400, str(exc))
     error, output = "", ""
     try:
         output = ai.ask(full_prompt, purpose="tools")

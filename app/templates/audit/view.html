@@ -5,8 +5,8 @@
   <div><h1>Audit: {{ place.name }}</h1><p>{{ a.url or "No website" }} · {{ (a.created_at or "")[:16].replace("T", " ") }} UTC</p></div>
   <div class="actions no-print">
     {% if contact %}<a class="btn" href="/crm/contacts/{{ contact.id }}">Contact</a>
-      {% if modules.claude and a.issues >= 0 %}<form method="post" action="/audit/{{ a.id }}/draft-email"><button>Draft outreach email (Claude)</button></form>{% endif %}
-    {% else %}<a class="btn" href="/leads/save?place_id={{ place.id }}">Save as lead</a>{% endif %}
+      {% if modules.ai and a.issues >= 0 %}<form method="post" action="/audit/{{ a.id }}/draft-email"><button>Draft outreach email (AI)</button></form>{% endif %}
+    {% else %}<form method="post" action="/leads/save" style="display:inline"><input type="hidden" name="place_id" value="{{ place.id }}"><button>Save as lead</button></form>{% endif %}
     <form method="post" action="/audit/{{ a.id }}/share"><button>Share link</button></form>
     <button type="button" onclick="window.print()">Print / PDF</button>
     <form method="post" action="/audit/run"><input type="hidden" name="place_id" value="{{ place.id }}"><button>Re-run</button></form>

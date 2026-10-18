@@ -5,7 +5,7 @@
   {% if sent %}<div class="notice good" style="margin-top:12px">Thank you, your answers were saved.</div>
   {% else %}
   <form method="post" action="/q/{{ q.token }}" style="margin-top:12px">
-    <input type="hidden" name="c" value="{{ c or '' }}"><input type="hidden" name="co" value="{{ co or '' }}">
+    <input type="hidden" name="c" value="{{ c or '' }}"><input type="hidden" name="co" value="{{ co or '' }}"><input type="hidden" name="s" value="{{ s or '' }}">
     {% for qq in q.questions %}
     <div class="field"><label>{{ qq.label }}</label>
       {% if qq.type == "longtext" %}<textarea name="{{ qq.id }}"></textarea>

@@ -4,6 +4,8 @@
   <div><h1>Dashboard</h1><p>Find local businesses, prove the opportunity, win them, then run their local SEO.</p></div>
   <div class="actions"><a class="btn btn-primary" href="/leads/search">Find leads</a><a class="btn" href="/rank/new">New rank scan</a></div>
 </div>
+{% if not counts.clients %}<div class="notice info" style="margin-bottom:12px">New here? The <a href="/guide">Guide</a> walks through
+  everything, step by step, including which API keys to add.</div>{% endif %}
 <div class="grid grid-4">
   <a class="card stat" href="/crm/contacts"><b>{{ counts.leads }}</b><span>Contacts &amp; leads</span></a>
   <a class="card stat" href="/clients"><b>{{ counts.clients }}</b><span>Clients</span></a>

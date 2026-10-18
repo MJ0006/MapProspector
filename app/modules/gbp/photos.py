@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from fractions import Fraction
 from pathlib import Path
 
-from app import db, jobs, settings
+from app import db, jobs, journal, settings
 from app.providers import gbp_api
 
 CATEGORIES = ["ADDITIONAL", "EXTERIOR", "INTERIOR", "PRODUCT", "AT_WORK", "TEAMS", "COVER", "LOGO"]
@@ -20,6 +20,14 @@ def photo_dir(company_id: int) -> Path:
     d = settings.UPLOAD_DIR / "photos" / str(company_id)
     d.mkdir(parents=True, exist_ok=True)
     return d
+
+
+def unique_name(folder: Path, business: str, caption: str, original: str) -> str:
+    """A descriptive file name not used by any file in the folder (deleted photos leave gaps in the numbering)."""
+    n = 1
+    while (folder / (name := descriptive_name(business, caption, original, n))).exists():
+        n += 1
+    return name
 
 
 def descriptive_name(business: str, caption: str, original: str, n: int) -> str:
@@ -73,11 +81,19 @@ def publish(photo_id: int) -> str:
 def publish_due() -> None:
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     for p in db.all("SELECT id FROM photos WHERE status = 'scheduled' AND scheduled_at <= ?", now):
+        if not db.claim("photos", p["id"], ("scheduled",), "publishing"):
+            continue
         try:
             if publish(p["id"]) == "manual":
                 db.update("photos", p["id"], status="library", scheduled_at=None)
                 co = db.one("SELECT company_id FROM photos WHERE id = ?", p["id"])
                 db.insert("tasks", company_id=co["company_id"], title=f"Upload scheduled photo #{p['id']} to Google",
                           due_at=now, created_at=db.now())
-        except gbp_api.GBPError:
+        except Exception as exc:
             db.update("photos", p["id"], status="failed")
+            journal.failure("photos", "publish_due", exc, subject_type="photo", subject_id=p["id"])
+
+
+@jobs.on_startup
+def recover_publishing() -> None:
+    db.run("UPDATE photos SET status = 'failed' WHERE status = 'publishing'")

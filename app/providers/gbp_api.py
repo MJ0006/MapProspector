@@ -40,12 +40,19 @@ def auth_url(state: str) -> str:
 
 def exchange(code: str, client: httpx.Client | None = None) -> None:
     http = client or httpx.Client(timeout=30)
-    r = http.post(TOKEN_URL, data={"code": code, "client_id": settings.env("GOOGLE_OAUTH_CLIENT_ID"),
-                                   "client_secret": settings.env("GOOGLE_OAUTH_CLIENT_SECRET"),
-                                   "redirect_uri": redirect_uri(), "grant_type": "authorization_code"})
+    try:
+        r = _exchange_request(http, code)
+    except httpx.HTTPError as exc:
+        raise GBPError(f"Could not reach Google: {exc}") from exc
     if r.status_code != 200:
         raise GBPError(f"Google sign-in failed: {r.text[:300]}")
     _save(r.json())
+
+
+def _exchange_request(http: httpx.Client, code: str) -> httpx.Response:
+    return http.post(TOKEN_URL, data={"code": code, "client_id": settings.env("GOOGLE_OAUTH_CLIENT_ID"),
+                                      "client_secret": settings.env("GOOGLE_OAUTH_CLIENT_SECRET"),
+                                      "redirect_uri": redirect_uri(), "grant_type": "authorization_code"})
 
 
 def _save(tok: dict) -> None:
@@ -70,6 +77,9 @@ def _token(http: httpx.Client) -> str:
                                        "client_secret": settings.env("GOOGLE_OAUTH_CLIENT_SECRET"),
                                        "refresh_token": tok.get("refresh_token"), "grant_type": "refresh_token"})
         if r.status_code != 200:
+            if "invalid_grant" in r.text:  # revoked, or expired (apps in Google's "Testing" mode: 7 days)
+                db.run("DELETE FROM oauth_tokens WHERE provider = 'google'")
+                raise GBPError("Google access was revoked or expired. Reconnect on Settings → Connect Google account.")
             raise GBPError(f"Could not refresh Google access: {r.text[:200]}")
         _save(r.json())
         tok = db.loads(db.one("SELECT data FROM oauth_tokens WHERE provider = 'google'")["data"], {})
@@ -80,6 +90,8 @@ def call(method: str, url: str, client: httpx.Client | None = None, **kw) -> dic
     http = client or httpx.Client(timeout=60)
     try:
         r = http.request(method, url, headers={"Authorization": f"Bearer {_token(http)}"}, **kw)
+    except httpx.HTTPError as exc:  # timeouts and offline: a normal error, never an unhandled crash
+        raise GBPError(f"Could not reach Google: {exc}") from exc
     finally:
         if client is None:
             http.close()
@@ -93,14 +105,25 @@ def call(method: str, url: str, client: httpx.Client | None = None, **kw) -> dic
 def list_locations(client=None) -> list[dict]:
     """[{name: 'accounts/1/locations/2', title, address}] across your accounts."""
     out = []
-    for acc in call("GET", f"{ACCOUNTS}/accounts", client).get("accounts", []):
-        data = call("GET", f"{INFO}/{acc['name']}/locations", client,
-                    params={"readMask": "name,title,storefrontAddress", "pageSize": 100})
-        for loc in data.get("locations", []):
+    for acc in _all_pages(f"{ACCOUNTS}/accounts", "accounts", {"pageSize": 20}, client):
+        for loc in _all_pages(f"{INFO}/{acc['name']}/locations", "locations",
+                              {"readMask": "name,title,storefrontAddress", "pageSize": 100}, client):
             addr = loc.get("storefrontAddress") or {}
             out.append({"name": f"{acc['name']}/{loc['name']}", "title": loc.get("title"),
                         "address": ", ".join((addr.get("addressLines") or []) + [addr.get("locality", "")]).strip(", ")})
     return out
+
+
+def _all_pages(url: str, key: str, params: dict, client=None, max_pages: int = 50) -> list[dict]:
+    """Follow nextPageToken so agencies with many accounts/locations see all of them."""
+    items, token = [], None
+    for _ in range(max_pages):
+        data = call("GET", url, client, params={**params, **({"pageToken": token} if token else {})})
+        items += data.get(key, [])
+        token = data.get("nextPageToken")
+        if not token:
+            break
+    return items
 
 
 def _loc_id(gbp_location: str) -> str:

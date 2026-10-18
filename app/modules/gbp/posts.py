@@ -33,9 +33,9 @@ def company_facts(company: dict) -> str:
 
 
 def draft(company_id: int, topic: str, tone: str = "", length: str = "", extra_facts: str = "") -> int:
-    """Queue a Claude draft. The row shows as 'drafting' until Claude finishes (can take a minute)."""
+    """Queue an AI draft. The row shows as 'drafting' until the AI finishes (can take a minute)."""
     if not ai.available():
-        raise ai.AIUnavailable("The `claude` CLI is not installed or not on PATH.")
+        raise ai.AIUnavailable(ai.missing_message())
     pid = db.insert("gbp_posts", company_id=company_id, topic=topic, body="", status="drafting", created_at=db.now())
     jobs.submit(_fill, pid, tone, length, extra_facts)
     return pid
@@ -52,7 +52,7 @@ def _fill(post_id: int, tone: str, length: str, extra_facts: str) -> None:
         return
     db.update("gbp_posts", post_id, body=text.strip(), status="draft", error=None)
     journal.record("posts", "outcome", "draft", subject_type="post", subject_id=post_id, company_id=co["id"],
-                   data={"text": text.strip()})
+                   data={"text": text.strip(), "platform": ai.last_platform()})
 
 
 def publish(post_id: int) -> str:
@@ -74,11 +74,22 @@ def publish(post_id: int) -> str:
 def publish_scheduled() -> None:
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     for p in db.all("SELECT id FROM gbp_posts WHERE status = 'scheduled' AND scheduled_at <= ?", now):
+        # Take the row first: a post is tried once, never re-posted every minute after a timeout.
+        if not db.claim("gbp_posts", p["id"], ("scheduled",), "publishing"):
+            continue
         try:
             if publish(p["id"]) == "manual":
                 db.update("gbp_posts", p["id"], status="approved", error="Due now: post it in Google (not connected).")
-        except gbp_api.GBPError:
-            pass
+        except Exception as exc:
+            db.update("gbp_posts", p["id"], status="failed",
+                      error=f"{str(exc)[:240]} (check Google before retrying: it may have posted)")
+            journal.failure("posts", "publish_scheduled", exc, subject_type="post", subject_id=p["id"])
+
+
+@jobs.on_startup
+def recover_publishing() -> None:
+    db.run("UPDATE gbp_posts SET status = 'failed', error = 'Publishing was interrupted (app closed). Check Google, then retry.' "
+           "WHERE status = 'publishing'")
 
 
 @jobs.on_startup

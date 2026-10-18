@@ -166,5 +166,8 @@ def client_citations_to_brain(company_id: int):
     path = settings.UPLOAD_DIR / f"citations-{company_id}.csv"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(client_citations_export(company_id).body.decode(), encoding="utf-8")
-    brain.ingest("citations", co["vault_slug"], path)
+    try:
+        brain.ingest("citations", co["vault_slug"], path)
+    except brain.BrainError as exc:
+        raise HTTPException(502, f"Local SEO Brain could not add the citations: {exc}")
     return redirect(f"/clients/{company_id}/citations")

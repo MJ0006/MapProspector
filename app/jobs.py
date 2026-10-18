@@ -2,6 +2,7 @@
 recurring tick that fires due schedules, automation waits, profile-lock polls and reports.
 Jobs only run while the app is running on your PC."""
 import logging
+import time
 import traceback
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -39,8 +40,19 @@ def recover():
 
 
 def tick():
+    from app import db
+    db.set_setting("app_heartbeat", str(time.time()))
     for fn in _ticks:
         _safe(fn)
+
+
+def app_running() -> bool:
+    """True when the app's scheduler ticked in the last 3 minutes (checked from other processes, e.g. MCP)."""
+    from app import db
+    try:
+        return time.time() - float(db.get_setting("app_heartbeat", "0")) < 180
+    except ValueError:
+        return False
 
 
 def _safe(fn, *args, **kwargs):

@@ -35,6 +35,15 @@ def _secret() -> bytes:
     return path.read_text().strip().encode()
 
 
+def sign(*parts: object) -> str:
+    """Short signature for values put in links (e.g. which client a questionnaire link belongs to)."""
+    return hmac.new(_secret(), "|".join(map(str, parts)).encode(), hashlib.sha256).hexdigest()[:20]
+
+
+def signed(sig: str, *parts: object) -> bool:
+    return bool(sig) and hmac.compare_digest(sig, sign(*parts))
+
+
 def session_value() -> str:
     pw = settings.env("APP_PASSWORD")
     return hmac.new(_secret(), pw.encode(), hashlib.sha256).hexdigest()

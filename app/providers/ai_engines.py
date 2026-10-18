@@ -39,7 +39,9 @@ def ask(engine: str, question: str, client: httpx.Client | None = None) -> dict:
 
 
 def _claude(q: str, _http) -> dict:
-    text = ai.ask(q + "\n\nSearch the web before answering. List the source URLs you used at the end.", web=True)
+    # only="claude": this engine measures Claude's own answers, so it never falls back to another platform.
+    text = ai.ask(q + "\n\nSearch the web before answering. List the source URLs you used at the end.", web=True,
+                  only="claude", purpose="aivis")
     return {"text": text, "sources": URL_RE.findall(text)}
 
 
