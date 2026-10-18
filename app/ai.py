@@ -4,8 +4,9 @@
 drafts for the user to approve; nothing generated is ever sent or published directly.
 """
 import json
-import shutil
+from pathlib import Path
 import subprocess
+import sys
 import time
 
 from app import settings
@@ -18,7 +19,7 @@ class AIUnavailable(RuntimeError):
 
 
 def available() -> bool:
-    return shutil.which("claude") is not None
+    return settings.claude_exe() is not None
 
 
 def ask(prompt: str, *, web: bool = False, timeout: int = TIMEOUT, tools: list[str] | None = None,
@@ -26,13 +27,15 @@ def ask(prompt: str, *, web: bool = False, timeout: int = TIMEOUT, tools: list[s
     """Run one prompt. web=True lets Claude use web search/fetch (AI visibility, citation checks).
     mcp=True connects the MapProspector MCP server (.mcp.json) so Claude can read your data;
     `tools` lists the only tools Claude may use without asking."""
-    exe = shutil.which("claude")  # full path: on Windows this resolves the npm "claude.cmd" shim
+    exe = settings.claude_exe()
     if not exe:
         raise AIUnavailable("The `claude` CLI is not installed or not on PATH.")
-    cmd = [exe, "-p", prompt, "--output-format", "text"]
+    # The prompt goes in on stdin: Windows' "claude.cmd" shim passes arguments through cmd.exe, which cuts
+    # them at the first newline and at 8191 characters.
+    cmd = [exe, "-p", "--output-format", "text"]
     allowed = list(tools or []) + (["WebSearch", "WebFetch"] if web else [])
     if mcp:
-        cmd += ["--mcp-config", str(settings.ROOT / ".mcp.json"), "--strict-mcp-config"]
+        cmd += ["--mcp-config", str(mcp_config()), "--strict-mcp-config"]
     if allowed:
         cmd += ["--allowedTools", ",".join(allowed)]
     cwd = settings.ROOT if mcp else (settings.DATA_DIR if settings.DATA_DIR.exists() else None)
@@ -40,7 +43,8 @@ def ask(prompt: str, *, web: bool = False, timeout: int = TIMEOUT, tools: list[s
     t0 = time.monotonic()
     meta = {"purpose": purpose, "web": web, "mcp": mcp, "prompt_chars": len(prompt), "prompt_head": prompt[:300]}
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=cwd)
+        proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, encoding="utf-8",
+                              errors="replace", timeout=timeout, cwd=cwd)
     except subprocess.TimeoutExpired:
         journal.record(purpose, "ai_call", "ask", "failed", detail=f"timed out after {timeout}s",
                        data={**meta, "ms": int((time.monotonic() - t0) * 1000)})
@@ -52,6 +56,16 @@ def ask(prompt: str, *, web: bool = False, timeout: int = TIMEOUT, tools: list[s
         raise AIUnavailable(err)
     journal.record(purpose, "ai_call", "ask", data={**meta, "ms": ms, "reply_chars": len(proc.stdout)})
     return proc.stdout.strip()
+
+
+def mcp_config() -> Path:
+    """MCP config that starts the server with this same Python (the repo's .mcp.json says `python3`,
+    which a venv that isn't activated, or the desktop app's bundled Python, wouldn't match)."""
+    settings.ensure_dirs()
+    path = settings.DATA_DIR / "mcp.json"
+    path.write_text(json.dumps({"mcpServers": {"mapprospector": {
+        "command": sys.executable, "args": ["-m", "app.mcp_server"]}}}))
+    return path
 
 
 def ask_json(prompt: str, *, web: bool = False, timeout: int = TIMEOUT, purpose: str = "ai"):

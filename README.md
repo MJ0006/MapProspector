@@ -33,6 +33,22 @@ Run **one** app process (no `--workers`), so scheduled jobs don't run twice. Sch
 
 If you cloned without `--recurse-submodules`, run `git submodule update --init` to fetch Local SEO Brain.
 
+## Windows app
+
+`desktop/` turns MapProspector into a normal Windows app with a Start-menu shortcut. It is the same app with every feature: the installer carries its own Python and starts the server for you.
+
+**Get the installer:** on GitHub, open **Actions → Windows app**, pick the latest green run (or click **Run workflow**), and download **MapProspector-Setup** under *Artifacts*. Unzip it and run `MapProspector-Setup-<version>.exe`. The installer isn't code-signed, so Windows SmartScreen shows a warning the first time: click **More info → Run anyway**. Pushing a tag like `desktop-v1.0.0` also puts the installer on a GitHub Release.
+
+- **Claude:** install [Claude Code](https://claude.com/claude-code) on the laptop and log in once (`claude` in a terminal). The app finds it on PATH or in its usual install folders. If it's somewhere else, set `CLAUDE_PATH` in the app's `.env`.
+- **Keys:** **File → API keys and settings (.env)** opens the app's own `.env`, then **File → Restart server**.
+- **Your data** (database, client vaults, uploads, `.env`) lives in `%APPDATA%\MapProspector`. Updating or uninstalling the app leaves it in place. To bring data over from a VS Code checkout, quit the app and copy the contents of `./data` into `%APPDATA%\MapProspector\data`.
+- **Closing the window** keeps MapProspector in the system tray, so schedules, automations and review syncs keep running. Right-click the tray icon to quit, or turn on **Start when I sign in to Windows**.
+- Only one copy runs at a time. It uses port 8000 (the Google OAuth redirect above) unless something else is using that port. Don't run the VS Code server and the app at the same time.
+- Google sign-in, business websites and Maps links open in your normal browser. Google blocks sign-in inside apps.
+- Problems: **File → Open server log**.
+
+To try the desktop shell from a checkout: `cd desktop && npm install && npm start`. It uses your own Python; set `MAPPROSPECTOR_PYTHON` to your venv's `python.exe`. The shell is based on electron-starter-template, which is licensed for a single product (see `desktop/TEMPLATE-LICENSE`). Keep this repo private.
+
 ## Keys (all optional)
 
 Every module switches itself off when its key is missing. **Settings** shows what is on.

@@ -11,7 +11,7 @@ from pathlib import Path
 from fastapi import FastAPI, Form, Request
 from fastapi.staticfiles import StaticFiles
 
-from app import db, jobs, notify, security  # notify registers its background ticks
+from app import db, jobs, notify, security, settings  # notify registers its background ticks
 from app.web import redirect, render, safe_back
 
 logging.basicConfig(level=logging.INFO)
@@ -83,7 +83,7 @@ def notices_seen(request: Request):
 def settings_page(request: Request, saved: int = 0):
     google_connected = db.one("SELECT 1 FROM oauth_tokens WHERE provider = 'google'") is not None
     return render(request, "settings.html", title="Settings", integrations=INTEGRATIONS,
-                  saved=saved, google_connected=google_connected)
+                  saved=saved, google_connected=google_connected, env_file=settings.ENV_FILE)
 
 
 @app.post("/settings")
