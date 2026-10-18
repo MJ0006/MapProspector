@@ -130,6 +130,8 @@ def _plain(text: str) -> str:
 
 def next_action(slug: str) -> dict:
     """guide_next_action.py: the vault's next step, or the notes past their review date (which it puts first)."""
+    if not (vault_path(slug) / "wiki" / "hot.md").exists():
+        raise BrainError(f"The vault folder is missing or incomplete: {vault_path(slug)}")
     out = _run("guide_next_action.py", "--vault", str(vault_path(slug)), "--as-of", _today(), ok=(0, 1))
     if not out.startswith("Next:"):  # exit 1 is also used for errors, which go to stderr
         raise BrainError("guide_next_action.py could not read this vault's evidence metadata")
@@ -151,12 +153,16 @@ def lint(slug: str) -> dict:
         out = _run("lint_vault.py", "--vault", str(vault_path(slug)))
         return {"ok": True, "lines": [l for l in out.splitlines() if l.strip()]}
     except BrainError as exc:
+        if "Traceback" in str(exc):  # the script crashed: that's not a finding about the vault
+            raise
         return {"ok": False, "lines": [l for l in str(exc).splitlines() if l.strip()][-40:]}
 
 
 def relationship_map(slug: str) -> Path:
     """generate_vault_visuals.py: the vault's relationship map (SVG), created on first use."""
     path = vault_path(slug) / "_attachments" / "brain-relationship-map.svg"
+    if not (vault_path(slug) / "wiki").is_dir():
+        raise BrainError(f"The vault folder is missing or incomplete: {vault_path(slug)}")
     if not path.exists():
         _run("generate_vault_visuals.py", "--vault", str(vault_path(slug)))
     return path
@@ -175,7 +181,7 @@ def evidence_age(slug: str) -> list[dict]:
         row = {"kind": kind, "label": label, "date": None, "days": None, "stale": False}
         if kind in newest:
             row["date"] = newest[kind]["date"]
-            row["days"] = (date.today() - date.fromisoformat(row["date"])).days
+            row["days"] = (date.fromisoformat(_today()) - date.fromisoformat(row["date"])).days
             row["stale"] = row["days"] > EVIDENCE_MAX_DAYS
         out.append(row)
     return out

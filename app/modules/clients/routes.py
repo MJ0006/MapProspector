@@ -164,7 +164,10 @@ def client_brain(request: Request, company_id: int):
     # Past-review notes are the Brain's reference copies (Google policy, prompts), grouped by folder.
     due: dict[str, list[str]] = {}
     for item in action["due"]:
-        folder = item.split("/")[1] if item.startswith("wiki/") and item.count("/") >= 2 else "Google sources"
+        if not item.startswith("wiki/"):
+            folder = "Google sources"  # source-ledger ids
+        else:
+            folder = item.split("/")[1] if item.count("/") >= 2 else "vault notes"  # wiki/hot.md etc.
         due.setdefault(folder, []).append(item.rsplit("/", 1)[-1].removesuffix(".md"))
     from app.modules.audit.routes import TOOLS
     from app.providers import gbp_api
@@ -183,7 +186,9 @@ def client_brain_map(company_id: int):
         path = brain.relationship_map(co["vault_slug"])
     except brain.BrainError as exc:
         raise HTTPException(502, str(exc))
-    return FileResponse(path, media_type="image/svg+xml")
+    # Opened full size it is a page on the app's address: an SVG edited in the vault must not run scripts here.
+    return FileResponse(path, media_type="image/svg+xml",
+                        headers={"Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'self'"})
 
 
 @router.get("/clients/{company_id}/weekly-report")

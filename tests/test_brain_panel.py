@@ -59,3 +59,44 @@ def test_content_tools_offer_every_brain_prompt(client):
     page = client.get("/tools").text
     for p in brain.list_prompts():
         assert p["title"].strip() in page.replace("&#39;", "'").replace("&amp;", "&")
+
+
+def test_missing_vault_folder_is_reported_clearly(client):
+    import shutil
+    co_id, _, _ = _client_company(client)
+    slug = db.one("SELECT vault_slug FROM companies WHERE id = ?", co_id)["vault_slug"]
+    shutil.rmtree(brain.vault_path(slug))
+    assert "vault folder is missing" in client.get(f"/clients/{co_id}/brain").text
+    assert client.get(f"/clients/{co_id}/brain/map.svg").status_code == 502
+    assert not brain.vault_path(slug).exists()  # nothing half-created
+
+
+def test_map_cannot_run_scripts_and_top_level_notes_are_grouped(client, monkeypatch):
+    co_id, _, _ = _client_company(client)
+    csp = client.get(f"/clients/{co_id}/brain/map.svg").headers["content-security-policy"]
+    assert "default-src 'none'" in csp and "script" not in csp
+    monkeypatch.setattr(brain, "next_action", lambda slug: {"steps": [], "due": ["wiki/hot.md", "google-search-doc-updates",
+                                                                              "wiki/prompts/a.md"]})
+    page = client.get(f"/clients/{co_id}/brain").text
+    assert "vault notes (1)" in page and "Google sources (1)" in page and "prompts (1)" in page
+
+
+def test_lint_crash_is_an_error_not_a_vault_finding(client, monkeypatch):
+    co_id, _, _ = _client_company(client)
+
+    def crash(*a, **k):
+        raise brain.BrainError("Traceback (most recent call last):\n  boom")
+    monkeypatch.setattr(brain, "_run", crash)
+    import pytest
+    with pytest.raises(brain.BrainError):
+        brain.lint("x")
+
+
+def test_content_prompts_get_the_content_doctrine(client, monkeypatch):
+    from app import ai
+    seen = []
+    monkeypatch.setattr(ai, "ask", lambda prompt, **k: seen.append(prompt) or "draft")
+    for name, canon in [("blog-post-writing-prompt", "002"), ("gbp-services-prompt", "001"), ("claude-prompt-2", "003")]:
+        client.post("/tools/run", data={"prompt": name, "business_name": "Acme"})
+        want = brain.doctrine(int(canon), 2000)[:200]
+        assert want and want in seen[-1], name

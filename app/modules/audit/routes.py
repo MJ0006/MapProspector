@@ -28,6 +28,9 @@ TOOLS = {
     "AI search": ["visiblity-prompt", "visibility-follow-up-prompt", "step-1-the-chatgpt-discovery-prompt",
                   "step-2-the-follow-up-qualifying-prompt", "reddit-claude-prompt"],
 }
+# Which current-doctrine note (references/canon) goes with each group: 001 Business Profile, 002 content and spam,
+# 003 local, structured data and AI search.
+DOCTRINE = {"Google Business Profile": 1, "Website": 2, "Content plan": 2, "Articles": 2}
 
 
 def run_audit(audit_id: int) -> None:
@@ -147,10 +150,12 @@ def tools_run(request: Request, prompt: str = Form(...), business_name: str = Fo
               services: str = Form(""), website: str = Form(""), category: str = Form(""),
               audience: str = Form(""), extra: str = Form(""), company_id: str = Form("")):
     facts = {"Business name": business_name, "City / service area": city, "Primary category": category,
-             "Services": services, "Website": website, "Audience": audience, "Other confirmed facts": extra}
+             "Services": services, "Website": website, "Audience": audience,
+             "Other confirmed facts, or the material to work on": extra}
     lessons = journal.prompt_block("tools", int(company_id) if company_id.isdigit() else None)
     try:
-        full_prompt = brain.build_prompt(prompt, facts, doctrine_no=1 if prompt.startswith("gbp") else 3, extra=lessons)
+        full_prompt = brain.build_prompt(prompt, facts, doctrine_no=next(
+            (DOCTRINE.get(g, 3) for g, names in TOOLS.items() if prompt in names), 3), extra=lessons)
     except brain.BrainError as exc:
         raise HTTPException(400, str(exc))
     error, output = "", ""
