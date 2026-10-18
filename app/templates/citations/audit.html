@@ -11,7 +11,7 @@
 </div>
 {% if a.share_token %}<div class="notice no-print" id="share">View-only link: <a href="/share/citations/{{ a.share_token }}">/share/citations/{{ a.share_token }}</a></div>{% endif %}
 {% if a.status in ("queue", "in_progress") %}<div class="notice">Checking directories… this page refreshes.</div><script>setTimeout(() => location.reload(), 6000);</script>{% endif %}
-{% if a.status == "manual" %}<div class="notice warn">Automatic checks need the claude CLI. Use "Edit" on each row to record what you find.</div>{% endif %}
+{% if a.status == "manual" %}<div class="notice warn">Automatic checks need an AI platform with web search (Settings → AI platforms). Use "Edit" on each row to record what you find.</div>{% endif %}
 {% set editable = True %}{% set tracker = False %}
 {% include "citations/_report.html" %}
 {% endblock %}

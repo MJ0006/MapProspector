@@ -38,20 +38,25 @@ def modules() -> dict[str, bool]:
     }
 
 
-def claude_exe() -> str | None:
-    """Full path of the `claude` CLI. Apps started from the Start menu can have an older PATH than
-    a fresh terminal, so the usual install locations are checked too. CLAUDE_PATH overrides."""
-    if env("CLAUDE_PATH"):
-        return env("CLAUDE_PATH") if Path(env("CLAUDE_PATH")).is_file() else None
-    found = shutil.which("claude")  # on Windows this also resolves the npm "claude.cmd" shim
+def find_cli(name: str, override: str) -> str | None:
+    """Full path of an AI command-line tool (`claude`, `codex`, `gemini`). Apps started from the Start menu
+    can have an older PATH than a fresh terminal, so the usual install folders are checked too.
+    The `override` setting (e.g. CLAUDE_PATH) wins when set."""
+    if env(override):
+        return env(override) if Path(env(override)).is_file() else None
+    found = shutil.which(name)  # on Windows this also resolves npm's "<name>.cmd" shims
     if found:
         return found
     home = Path.home()
-    for c in (home / ".local" / "bin" / "claude.exe", home / ".local" / "bin" / "claude",
-              Path(os.environ.get("APPDATA", home)) / "npm" / "claude.cmd"):
+    for c in (home / ".local" / "bin" / f"{name}.exe", home / ".local" / "bin" / name,
+              Path(os.environ.get("APPDATA", home)) / "npm" / f"{name}.cmd"):
         if c.is_file():
             return str(c)
     return None
+
+
+def claude_exe() -> str | None:
+    return find_cli("claude", "CLAUDE_PATH")
 
 
 def enabled(name: str) -> bool:

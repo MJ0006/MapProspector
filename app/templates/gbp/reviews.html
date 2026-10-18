@@ -14,10 +14,10 @@
       <a class="btn {{ 'btn-primary' if show == 'todo' else '' }}" href="?show=todo">To answer</a>
       <a class="btn {{ 'btn-primary' if show == 'all' else '' }}" href="?show=all">All</a>
       {% if connected and co.gbp_location %}<form method="post" action="/clients/{{ co.id }}/reviews/sync"><button>Sync from Google</button></form>{% endif %}
-      {% if modules.claude %}<form method="post" action="/clients/{{ co.id }}/reviews/draft-all"><button>Draft replies for unanswered (Claude)</button></form>{% endif %}
+      {% if modules.ai %}<form method="post" action="/clients/{{ co.id }}/reviews/draft-all"><button>Draft replies for unanswered (AI)</button></form>{% endif %}
     </div>
     {% if rows | selectattr("reply_status", "equalto", "drafting") | list %}
-    <div class="notice">Claude is drafting replies… this page refreshes.</div><script>setTimeout(() => location.reload(), 5000);</script>
+    <div class="notice">Drafting replies… this page refreshes.</div><script>setTimeout(() => location.reload(), 5000);</script>
     {% endif %}
     {% for r in rows %}
     <form class="card" method="post" action="/gbp/reviews/{{ r.id }}/approve">
@@ -26,9 +26,9 @@
       <p style="margin-top:6px">{{ r.text or "(no text)" }}</p>
       {% if r.reply_status == "published" %}<p class="hint"><b>Reply:</b> {{ r.reply_text }}</p>
       {% else %}
-      <div class="field"><textarea name="text" id="reply-{{ r.id }}" placeholder="Write a reply or draft one with Claude">{{ r.reply_draft or r.reply_text or "" }}</textarea></div>
+      <div class="field"><textarea name="text" id="reply-{{ r.id }}" placeholder="Write a reply or draft one with AI">{{ r.reply_draft or r.reply_text or "" }}</textarea></div>
       <div class="actions">
-        {% if modules.claude %}<button type="submit" formaction="/gbp/reviews/{{ r.id }}/draft">Draft with Claude</button>{% endif %}
+        {% if modules.ai %}<button type="submit" formaction="/gbp/reviews/{{ r.id }}/draft">Draft with AI</button>{% endif %}
         {% if connected and co.gbp_location %}<button class="primary" type="submit">Approve &amp; post reply</button>
         {% else %}<button type="button" onclick="navigator.clipboard.writeText(document.getElementById('reply-{{ r.id }}').value)">Copy</button>
           <button type="submit" formaction="/gbp/reviews/{{ r.id }}/mark_replied">Mark replied</button>{% endif %}

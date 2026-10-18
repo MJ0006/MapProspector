@@ -50,7 +50,7 @@ def test_review_reply_flow(client, monkeypatch):
     rv = db.one("SELECT * FROM reviews")
     assert rv["author_hash"] and "Jane" not in json.dumps(rv)
     seen = {}
-    monkeypatch.setattr(ai, "available", lambda: True)
+    monkeypatch.setattr(ai, "available", lambda **k: True)
     monkeypatch.setattr(ai, "ask", lambda p, **k: seen.setdefault("p", p) and "We're sorry about the delay.")
     client.post(f"/gbp/reviews/{rv['id']}/draft")
     assert db.one("SELECT reply_status FROM reviews")["reply_status"] == "draft"
@@ -78,7 +78,7 @@ def test_review_request_has_no_gating(client):
 
 def test_post_draft_and_reminder(client, monkeypatch):
     co_id, _, _ = _client_company(client)
-    monkeypatch.setattr(ai, "available", lambda: True)
+    monkeypatch.setattr(ai, "available", lambda **k: True)
     monkeypatch.setattr(ai, "ask", lambda p, **k: "Fall is here: book a water heater check.")
     client.post(f"/clients/{co_id}/posts/draft", data={"topic": "Water heater check", "count": "2"})
     rows = db.all("SELECT * FROM gbp_posts")

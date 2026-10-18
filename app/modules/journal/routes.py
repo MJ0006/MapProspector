@@ -32,7 +32,7 @@ def journal_learn(area: str = Form(...), company_id: str = Form("")):
     if area not in journal.DRAFT_AREAS:
         raise HTTPException(400, "Unknown area")
     if not ai.available():
-        raise HTTPException(503, "Needs the claude CLI.")
+        raise HTTPException(503, ai.missing_message())
     jobs.submit(journal.propose_lessons, area, int(company_id) if company_id else None)
     return redirect("/journal?learning=1")
 

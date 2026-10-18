@@ -4,7 +4,7 @@
 <div class="grid grid-1-2">
   <div>
     <form class="card" method="post" action="/clients/{{ co.id }}/posts/draft">
-      <h2>Draft posts with Claude</h2>
+      <h2>Draft posts with AI</h2>
       <div class="field"><label>Topic</label><input type="text" name="topic" placeholder="Fall gutter cleaning reminder" required></div>
       <div class="row">
         <div class="field"><label>Tone</label><input type="text" name="tone" placeholder="{{ co.brand_voice or 'friendly' }}"></div>
@@ -12,8 +12,8 @@
         <div class="field"><label>How many</label><input type="number" name="count" value="1" min="1" max="8"></div>
       </div>
       <div class="field"><label>Facts to use (offers, services, events)</label><textarea name="facts" style="min-height:70px"></textarea></div>
-      <button class="primary" type="submit" {% if not modules.claude %}disabled{% endif %}>Draft</button>
-      {% if not modules.claude %}<p class="hint">Needs the claude CLI.</p>{% endif %}
+      <button class="primary" type="submit" {% if not modules.ai %}disabled{% endif %}>Draft</button>
+      {% if not modules.ai %}<p class="hint">Needs an AI platform (<a href="/settings#ai">Settings → AI platforms</a>).</p>{% endif %}
     </form>
     <form class="card" method="post" action="/clients/{{ co.id }}/posts/manual">
       <h2>Write one yourself</h2>
@@ -23,7 +23,7 @@
   </div>
   <div>
     {% if rows | selectattr("status", "equalto", "drafting") | list %}
-    <div class="notice">Claude is drafting… new posts appear here as they finish.</div><script>setTimeout(() => location.reload(), 5000);</script>
+    <div class="notice">Drafting… new posts appear here as they finish.</div><script>setTimeout(() => location.reload(), 5000);</script>
     {% endif %}
     {% for p in rows %}{% if p.status == "drafting" %}<div class="card"><span class="badge info">drafting…</span> <span class="hint">{{ p.topic }}</span></div>{% else %}
     <form class="card" method="post" action="/gbp/posts/{{ p.id }}/approve">

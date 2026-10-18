@@ -30,7 +30,7 @@ def test_profile_from_address():
 
 
 def test_audit_run_with_claude_lookup(client, monkeypatch):
-    monkeypatch.setattr(ai, "available", lambda: True)
+    monkeypatch.setattr(ai, "available", lambda **k: True)
     calls = []
 
     def fake(prompt, **kw):

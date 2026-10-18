@@ -52,7 +52,7 @@ def _run(script: str, *args: str) -> str:
         env = {**os.environ, "PYTHONPATH": os.pathsep.join(filter(None, [str(WINSHIM), os.environ.get("PYTHONPATH")]))}
     proc = subprocess.run([sys.executable, str(settings.BRAIN_DIR / "scripts" / script), *args],
                           capture_output=True, text=True, encoding="utf-8", errors="replace",
-                          cwd=settings.BRAIN_DIR, timeout=300, env=env)
+                          cwd=settings.BRAIN_DIR, timeout=300, env=env, stdin=subprocess.DEVNULL)
     if proc.returncode != 0:
         raise BrainError((proc.stderr or proc.stdout).strip()[-800:])
     return proc.stdout.strip()

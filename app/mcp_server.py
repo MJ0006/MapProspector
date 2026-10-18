@@ -6,6 +6,7 @@ Speaks MCP over stdio (newline-delimited JSON-RPC 2.0). Read tools are side-effe
 and create_task change data, and start_scan spends API credit with your rank provider.
 """
 import json
+import os
 import sys
 import traceback
 
@@ -191,6 +192,9 @@ TOOLS = {
     "create_task": (create_task, "Create a task / reminder.", _schema({"title": S, "due_at": S, "contact_id": I, "company_id": I}, ["title"])),
 }
 READ_ONLY = [n for n in TOOLS if n not in ("start_scan", "create_task")]
+# Set by the app when an AI platform connects (app/ai/mcp.py): only the read-only tools exist then.
+if os.environ.get("MAPPROSPECTOR_MCP_READONLY") == "1":
+    TOOLS = {n: TOOLS[n] for n in READ_ONLY}
 
 
 def handle(msg: dict) -> dict | None:

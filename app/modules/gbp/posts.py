@@ -33,9 +33,9 @@ def company_facts(company: dict) -> str:
 
 
 def draft(company_id: int, topic: str, tone: str = "", length: str = "", extra_facts: str = "") -> int:
-    """Queue a Claude draft. The row shows as 'drafting' until Claude finishes (can take a minute)."""
+    """Queue an AI draft. The row shows as 'drafting' until the AI finishes (can take a minute)."""
     if not ai.available():
-        raise ai.AIUnavailable("The `claude` CLI is not installed or not on PATH.")
+        raise ai.AIUnavailable(ai.missing_message())
     pid = db.insert("gbp_posts", company_id=company_id, topic=topic, body="", status="drafting", created_at=db.now())
     jobs.submit(_fill, pid, tone, length, extra_facts)
     return pid
@@ -52,7 +52,7 @@ def _fill(post_id: int, tone: str, length: str, extra_facts: str) -> None:
         return
     db.update("gbp_posts", post_id, body=text.strip(), status="draft", error=None)
     journal.record("posts", "outcome", "draft", subject_type="post", subject_id=post_id, company_id=co["id"],
-                   data={"text": text.strip()})
+                   data={"text": text.strip(), "platform": ai.last_platform()})
 
 
 def publish(post_id: int) -> str:

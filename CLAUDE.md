@@ -19,4 +19,6 @@ vendored, **unmodified** `vendor/local-seo-brain`; don't edit it, wrap it in `ap
   failures with `journal.failure()`.
 - Windows app (`desktop/`) only starts and shows this same server; build features in `app/`, not there. The
   server runs from `%APPDATA%\MapProspector` (`DATA_DIR`, `MAPPROSPECTOR_ENV_FILE`), so never assume `./data` or `./.env`.
+- AI calls go through `app.ai.ask()` (fallback across Claude, ChatGPT/Codex, Gemini, Ollama). Never call a CLI
+  directly; add a platform as one file in `app/ai/` listed in `PLATFORMS`. Platforms get read-only MCP tools only.
 - New DB columns: add them to `app/schema.sql` **and** `db.COLUMNS` (migrates existing databases).

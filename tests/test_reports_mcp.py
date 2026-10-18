@@ -89,4 +89,5 @@ def test_ai_ask_command_line(monkeypatch):
     assert captured["cwd"] == settings.ROOT
     import sys
     server = json.loads(Path(cmd[cmd.index("--mcp-config") + 1]).read_text())["mcpServers"]["mapprospector"]
-    assert server == {"command": sys.executable, "args": ["-m", "app.mcp_server"]}
+    assert server == {"command": sys.executable, "args": ["-m", "app.mcp_server"],
+                      "env": {"MAPPROSPECTOR_MCP_READONLY": "1"}}

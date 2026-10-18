@@ -41,6 +41,13 @@ def notices() -> list[dict]:
     proposed = db.one("SELECT COUNT(*) n FROM lessons WHERE status = 'proposed'")["n"]
     if proposed:
         out.append({"level": "info", "text": f"{proposed} lesson{'s' if proposed > 1 else ''} to review", "href": "/journal"})
+    from app import ai
+    for p in ai.pauses():
+        until = datetime.fromisoformat(p["until"]).astimezone()
+        when = until.strftime("%H:%M") if until.date() == datetime.now().astimezone().date() else until.strftime("%b %d %H:%M")
+        why = "usage limit reached" if p["kind"] == "limit" else "not signed in"
+        instead = f"using {p['instead']}" if p["instead"] else "no other AI platform is ready"
+        out.append({"level": "warn", "text": f"{p['label']} {why}: {instead} until {when}", "href": "/settings#ai"})
     return out
 
 

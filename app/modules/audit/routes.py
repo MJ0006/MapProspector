@@ -113,12 +113,13 @@ def audit_draft_email(aid: int):
         draft = ai.ask_json(outreach_prompt(ctx["place"], db.loads(ctx["a"]["checks"], []), brand()["name"]),
                             purpose="outbox")
     except (ai.AIUnavailable, ValueError) as exc:
-        raise HTTPException(503, f"Could not draft with Claude: {exc}")
+        raise HTTPException(503, f"Could not draft with AI: {exc}")
     oid = mailer.queue("email", contact["id"], contact["email"] or "", draft.get("subject", ""), draft.get("body", ""),
                        origin="audit")
     if oid:
         journal.record("outbox", "outcome", "draft", subject_type="outbox", subject_id=oid,
-                       data={"text": db.one("SELECT body FROM outbox WHERE id = ?", oid)["body"]})
+                       data={"text": db.one("SELECT body FROM outbox WHERE id = ?", oid)["body"],
+                             "platform": ai.last_platform()})
     return redirect("/crm/outbox")
 
 

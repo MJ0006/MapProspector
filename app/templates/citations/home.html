@@ -3,7 +3,7 @@
 <div class="page-head">
   <div><h1>Citation audit</h1><p>Check how a business is listed across the directories that matter, field by field.</p></div>
 </div>
-{% if not modules.claude %}<div class="notice warn">Automatic checks use the <code>claude</code> CLI (web search). Without it, the audit is created for you to fill in by hand.</div>{% endif %}
+{% if not modules.ai_web %}<div class="notice warn">Automatic checks need an AI platform with web search (Claude, ChatGPT or Gemini; see Settings → AI platforms). Without it, the audit is created for you to fill in by hand.</div>{% endif %}
 <form class="card" method="post" action="/citations">
   <input type="hidden" name="place_id" value="{{ place.id if place else '' }}">
   <div class="row">

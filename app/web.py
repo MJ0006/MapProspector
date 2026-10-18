@@ -60,7 +60,11 @@ NAV = [
 
 
 def render(request: Request, name: str, **ctx):
-    ctx.setdefault("modules", settings.modules())
+    if "modules" not in ctx:
+        from app import ai
+        # ai: some platform can draft; ai_web: one can also search the web; ai_mcp: one can read app data (Ask)
+        ctx["modules"] = {**settings.modules(), "ai": ai.available(), "ai_web": ai.available(web=True),
+                          "ai_mcp": ai.available(mcp=True)}
     ctx.setdefault("brand", brand())
     ctx.setdefault("public_is_local", public_is_local())
     from app import notify

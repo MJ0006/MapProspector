@@ -79,14 +79,14 @@ def draft_reply(review_id: int) -> str:
     text = ai.ask(reply_prompt(co, rv), purpose="reviews")
     db.update("reviews", review_id, reply_draft=text, reply_status="draft")
     journal.record("reviews", "outcome", "draft", subject_type="review", subject_id=review_id, company_id=co["id"],
-                   data={"text": text})
+                   data={"text": text, "platform": ai.last_platform()})
     return text
 
 
 def queue_drafts(review_ids: list[int]) -> None:
     """Draft replies in the background; rows show 'drafting' meanwhile."""
     if not ai.available():
-        raise ai.AIUnavailable("The `claude` CLI is not installed or not on PATH.")
+        raise ai.AIUnavailable(ai.missing_message())
     for rid in review_ids:
         prev = db.one("SELECT reply_status FROM reviews WHERE id = ?", rid)["reply_status"]
         db.update("reviews", rid, reply_status="drafting")
