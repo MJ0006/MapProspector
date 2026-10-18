@@ -49,7 +49,9 @@ def _today() -> str:
 def _run(script: str, *args: str, ok: tuple[int, ...] = (0,)) -> str:
     env = None
     if os.name == "nt":  # the brain is written for macOS/Linux; app/winshim fills the gaps on Windows
-        env = {**os.environ, "PYTHONPATH": os.pathsep.join(filter(None, [str(WINSHIM), os.environ.get("PYTHONPATH")]))}
+        # PYTHONUTF8: the brain reads its notes with open()/read_text() defaults, which are cp1252 on Windows
+        env = {**os.environ, "PYTHONUTF8": "1",
+               "PYTHONPATH": os.pathsep.join(filter(None, [str(WINSHIM), os.environ.get("PYTHONPATH")]))}
     try:
         proc = subprocess.run([sys.executable, str(settings.BRAIN_DIR / "scripts" / script), *args],
                               capture_output=True, text=True, encoding="utf-8", errors="replace",
@@ -129,6 +131,8 @@ def _plain(text: str) -> str:
 def next_action(slug: str) -> dict:
     """guide_next_action.py: the vault's next step, or the notes past their review date (which it puts first)."""
     out = _run("guide_next_action.py", "--vault", str(vault_path(slug)), "--as-of", _today(), ok=(0, 1))
+    if not out.startswith("Next:"):  # exit 1 is also used for errors, which go to stderr
+        raise BrainError("guide_next_action.py could not read this vault's evidence metadata")
     out = out.removeprefix("Next:").strip()
     due = []
     m = re.match(r"refresh evidence before client recommendations:\s*(.*)", out, re.S)
