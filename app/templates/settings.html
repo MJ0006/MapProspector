@@ -17,7 +17,7 @@
       </tr>
       {% endfor %}
     </table>
-    <p class="hint" style="margin-top:10px">Edit <code>.env</code> (see <code>.env.example</code>) and restart the app to change these.</p>
+    <p class="hint" style="margin-top:10px">Edit <code>{{ env_file }}</code> (see <code>.env.example</code>) and restart the app to change these.</p>
     {% if modules.google_oauth %}
     <h3 style="margin-top:14px">Google account</h3>
     {% if google_connected %}<p><span class="badge good">connected</span> Business Profile / Search Console access granted.</p>

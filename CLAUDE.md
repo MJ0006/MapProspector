@@ -17,4 +17,6 @@ vendored, **unmodified** `vendor/local-seo-brain`; don't edit it, wrap it in `ap
 - No invented scores: any grade shows its formula. No ranking guarantees.
 - New background work: register recovery with `@jobs.on_startup`, take rows with `db.claim()`, and record
   failures with `journal.failure()`.
+- Windows app (`desktop/`) only starts and shows this same server; build features in `app/`, not there. The
+  server runs from `%APPDATA%\MapProspector` (`DATA_DIR`, `MAPPROSPECTOR_ENV_FILE`), so never assume `./data` or `./.env`.
 - New DB columns: add them to `app/schema.sql` **and** `db.COLUMNS` (migrates existing databases).

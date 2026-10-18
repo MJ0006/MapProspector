@@ -1,0 +1,19 @@
+{
+  "name": "mapprospector",
+  "productName": "MapProspector",
+  "version": "1.0.0",
+  "description": "MapProspector desktop app: runs the MapProspector server and opens it in its own window.",
+  "private": true,
+  "main": "out/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "npm run build && electron .",
+    "dist:win": "npm run build && electron-builder --win --publish never"
+  },
+  "devDependencies": {
+    "@types/node": "24.12.2",
+    "electron": "41.3.0",
+    "electron-builder": "26.8.1",
+    "typescript": "5.9.3"
+  }
+}

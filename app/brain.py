@@ -5,6 +5,7 @@ Two jobs:
 2. Turn the brain's prompt notes and doctrine into prompts for `claude -p`, always
    carrying the brain's refusal rules so drafts stay inside Google's policies.
 """
+import os
 import re
 import subprocess
 import sys
@@ -15,6 +16,7 @@ from app import settings
 
 WIKI = settings.BRAIN_DIR / "assets" / "template-brain" / "wiki"
 CANON = settings.BRAIN_DIR / "references" / "canon"
+WINSHIM = Path(__file__).with_name("winshim")
 
 # Condensed from vendor/local-seo-brain/docs/PRODUCT_BOUNDARIES.md (Refusals) and README.
 GUARDRAILS = """Rules (from Local SEO Brain, follow strictly):
@@ -45,8 +47,12 @@ def _today() -> str:
 
 
 def _run(script: str, *args: str) -> str:
+    env = None
+    if os.name == "nt":  # the brain is written for macOS/Linux; app/winshim fills the gaps on Windows
+        env = {**os.environ, "PYTHONPATH": os.pathsep.join(filter(None, [str(WINSHIM), os.environ.get("PYTHONPATH")]))}
     proc = subprocess.run([sys.executable, str(settings.BRAIN_DIR / "scripts" / script), *args],
-                          capture_output=True, text=True, cwd=settings.BRAIN_DIR, timeout=300)
+                          capture_output=True, text=True, encoding="utf-8", errors="replace",
+                          cwd=settings.BRAIN_DIR, timeout=300, env=env)
     if proc.returncode != 0:
         raise BrainError((proc.stderr or proc.stdout).strip()[-800:])
     return proc.stdout.strip()
@@ -93,7 +99,7 @@ def render_report(slug: str) -> Path:
 def deliverable(slug: str, name: str) -> str | None:
     """Read 'Health Scorecard' or 'Action Roadmap' markdown from a client vault."""
     path = vault_path(slug) / "wiki" / "deliverables" / f"{name}.md"
-    return strip_frontmatter(path.read_text()) if path.exists() else None
+    return strip_frontmatter(path.read_text(encoding="utf-8")) if path.exists() else None
 
 
 def vault_sources(slug: str) -> list[str]:
@@ -130,7 +136,7 @@ def prompt_note(name: str) -> dict:
     path = WIKI / "prompts" / f"{name}.md"
     if not path.exists():
         raise BrainError(f"Brain prompt not found: {name}")
-    raw = path.read_text()
+    raw = path.read_text(encoding="utf-8")
     title = re.search(r'^title:\s*"?(.*?)"?\s*$', raw, re.M)
     conf = re.search(r'^confidence:\s*"?(.*?)"?\s*$', raw, re.M)
     sec = _sections(strip_frontmatter(raw))
@@ -151,13 +157,13 @@ def list_prompts() -> list[dict]:
 def chapter(rel: str, limit: int = 4000) -> str:
     """Body text of a wiki chapter, e.g. 'gbp/gbp-posts'."""
     path = WIKI / f"{rel}.md"
-    return strip_frontmatter(path.read_text())[:limit] if path.exists() else ""
+    return strip_frontmatter(path.read_text(encoding="utf-8"))[:limit] if path.exists() else ""
 
 
 def doctrine(number: int, limit: int = 3000) -> str:
     """Current-doctrine note from references/canon (001 GBP, 002 content/spam, 003 local/structured/AI)."""
     for p in CANON.glob(f"{number:03d}-*.md"):
-        return strip_frontmatter(p.read_text())[:limit]
+        return strip_frontmatter(p.read_text(encoding="utf-8"))[:limit]
     return ""
 
 

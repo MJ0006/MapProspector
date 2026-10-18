@@ -27,6 +27,9 @@ def isolated(tmp_path, monkeypatch):
     import shutil
     real_which = shutil.which
     monkeypatch.setattr(shutil, "which", lambda name, *a, **k: None if name == "claude" else real_which(name, *a, **k))
+    for var in ("HOME", "USERPROFILE", "APPDATA"):  # settings.claude_exe() also looks in these
+        monkeypatch.setenv(var, str(tmp_path / "home"))
+    monkeypatch.delenv("CLAUDE_PATH", raising=False)
     db.init(tmp_path / "test.db")
     yield tmp_path
 

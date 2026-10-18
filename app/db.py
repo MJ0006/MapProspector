@@ -27,7 +27,7 @@ def init(path: Path | None = None) -> None:
     _db_path = path or settings.DB_PATH
     with connect() as c:
         c.execute("PRAGMA journal_mode = WAL")  # background jobs + MCP server write concurrently
-        c.executescript(SCHEMA.read_text())
+        c.executescript(SCHEMA.read_text(encoding="utf-8"))
         migrate(c)
 
 

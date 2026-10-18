@@ -1,0 +1,37 @@
+# Adapted from electron-starter-template's electron-builder.yml (see TEMPLATE-LICENSE).
+appId: com.mj0006.mapprospector
+productName: MapProspector
+directories:
+  output: dist
+  buildResources: build
+asar: true
+files:
+  - out/**/*
+  - static/**/*
+  - package.json
+# Staged by .github/workflows/desktop.yml before packaging:
+#   build/python  a full, relocatable Python with requirements.txt installed
+#   build/server  app/, vendor/local-seo-brain, .env.example and .mcp.json from this repo
+extraResources:
+  - from: build/python
+    to: python
+  - from: build/server
+    to: server
+  - from: TEMPLATE-LICENSE
+    to: TEMPLATE-LICENSE
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.ico
+  artifactName: MapProspector-Setup-${version}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false # installs for you only, no admin rights needed
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: MapProspector
+  deleteAppDataOnUninstall: false # your database, vaults and .env stay in %APPDATA%\MapProspector
+linux:
+  target: [dir]
