@@ -42,7 +42,7 @@ If you cloned without `--recurse-submodules`, run `git submodule update --init` 
 **Get the installer:** on GitHub, open **Actions → Windows app**, pick the latest green run (or click **Run workflow**), and download **MapProspector-Setup** under *Artifacts*. Unzip it and run `MapProspector-Setup-<version>.exe`. The installer isn't code-signed, so Windows SmartScreen shows a warning the first time: click **More info → Run anyway**. Pushing a tag like `desktop-v1.0.0` also puts the installer on a GitHub Release.
 
 - **AI:** install at least one [AI platform](#ai-platforms) on the laptop and sign in (Settings → AI platforms → **Sign in** opens it for you). The app finds the tools on PATH or in their usual install folders.
-- **Keys:** **File → API keys and settings (.env)** opens the app's own `.env`, then **File → Restart server**.
+- **Keys:** paste them on **Settings → API keys** and press **Save keys**; they work right away. (Or **File → Open the .env file** to edit it directly, then **File → Restart server**.)
 - **Your data** (database, client vaults, uploads, `.env`) lives in `%APPDATA%\MapProspector`. Updating or uninstalling the app leaves it in place. To bring data over from a VS Code checkout, quit the app and copy the contents of `./data` into `%APPDATA%\MapProspector\data`.
 - **Closing the window** keeps MapProspector in the system tray, so schedules, automations and review syncs keep running. Right-click the tray icon to quit, or turn on **Start when I sign in to Windows**.
 - Only one copy runs at a time. It uses port 8000 (the Google OAuth redirect above) unless something else is using that port. Don't run the VS Code server and the app at the same time.

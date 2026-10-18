@@ -34,8 +34,8 @@
       <td><a href="{{ i.href }}">{{ i.title }}</a></td><td class="hint">{{ i.detail }}</td></tr>
     {% endfor %}
   </table></div>
-  <p class="hint">Keys go in <code>{{ env_file }}</code>. In the Windows app: <b>File → API keys and settings (.env)</b>, save, then
-    <b>File → Restart server</b>.</p>
+  <p class="hint">Add keys on <a href="/settings#keys"><b>Settings → API keys</b></a>: paste, <b>Save keys</b>, done (no restart). They are stored in
+    <code>{{ env_file }}</code> on this computer, which you can also edit directly.</p>
 </section>
 
 <section class="card" id="start">
@@ -72,8 +72,9 @@
 
 <section class="card" id="keys">
   <h2>3. API keys, click by click</h2>
-  <p>All optional. Each module switches itself off without its key, and <b>Settings</b> shows what is on. After editing
-    <code>.env</code>, restart the server (Windows app: <b>File → Restart server</b>).</p>
+  <p>All optional. Each module switches itself off without its key, and <b>Settings</b> shows what is on. Paste each key on
+    <a href="/settings#keys"><b>Settings → API keys</b></a> and press <b>Save keys</b>; it works right away. (Editing <code>.env</code> by hand
+    also works: then restart the server, Windows app: <b>File → Restart server</b>.)</p>
   {{ shot("settings", "Settings: which integrations are on, Google account, branding") }}
 </section>
 
@@ -83,7 +84,7 @@
   <p><b>Turns on:</b> {{ k.unlocks }}</p>
   {% if k.cost %}<p class="hint"><b>Cost:</b> {{ k.cost }}</p>{% endif %}
   <ol>{% for s in k.steps %}<li>{{ s | safe }}</li>{% endfor %}</ol>
-  {% if k.env %}<p class="hint">Add to <code>.env</code>:</p><pre class="guide-env">{{ k.env }}</pre>{% endif %}
+  {% if k.env %}<p class="hint">Paste on <a href="/settings#keys">Settings → API keys</a>, or add to <code>.env</code>:</p><pre class="guide-env">{{ k.env }}</pre>{% endif %}
   <p class="hint">Keys: {% for key in k["keys"] + (k.optional_keys or []) %}<code>{{ key }}</code>{{ ", " if not loop.last }}{% endfor %}</p>
 </section>
 {% endfor %}

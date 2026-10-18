@@ -1,4 +1,18 @@
 {% extends "base.html" %}
+{% macro key_field(f) %}
+    <div class="field">
+      <label for="k-{{ f.key }}"><code>{{ f.key }}</code>
+        {% if f.set %}<span class="badge good">set</span>{% endif %}{% if f.restart %} <span class="hint">(applies after a restart)</span>{% endif %}</label>
+      <div class="actions">
+        {% if f.secret %}
+        <input id="k-{{ f.key }}" type="password" name="{{ f.key }}" placeholder="{{ f.shown or 'not set' }}" style="flex:1;min-width:0">
+        {% else %}
+        <input id="k-{{ f.key }}" type="text" name="{{ f.key }}" value="{{ f.shown }}" placeholder="not set" style="flex:1;min-width:0">
+        {% endif %}
+        {% if f.set %}<label class="hint" style="white-space:nowrap"><input type="checkbox" name="clear_{{ f.key }}"> Clear</label>{% endif %}
+      </div>
+    </div>
+{% endmacro %}
 {% block content %}
 <div class="page-head">
   <div><h1>Settings</h1><p>API keys live in your <code>.env</code> file (never in the database or repo). Branding applies to reports, share pages and review-request pages.</p></div>
@@ -17,7 +31,7 @@
       </tr>
       {% endfor %}
     </table>
-    <p class="hint" style="margin-top:10px">Edit <code>{{ env_file }}</code> (see <code>.env.example</code>) and restart the app to change these.</p>
+    <p class="hint" style="margin-top:10px">Add or change keys in <a href="#keys">API keys</a> below (or edit <code>{{ env_file }}</code> and restart).</p>
     {% if modules.google_oauth %}
     <h3 style="margin-top:14px">Google account</h3>
     {% if google_connected %}<p><span class="badge good">connected</span> Business Profile / Search Console access granted.</p>
@@ -37,6 +51,27 @@
       <button class="primary" type="submit">Save</button>
     </form>
   </div>
+</div>
+<div class="card" id="keys" style="margin-top:16px">
+  <h2>API keys</h2>
+  <p class="hint">Paste a key and press <b>Save keys</b>; it works right away. Saved keys show only their last 4 characters; leave a field
+    empty to keep it. Each key's <a href="/guide#keys">Guide section</a> shows where to get it. Stored in <code>{{ env_file }}</code> on this
+    computer only.</p>
+  {% if keys_saved >= 0 %}<div class="notice good">{% if keys_saved %}Saved {{ keys_saved }} change{{ "s" if keys_saved != 1 }}.{% else %}Nothing changed.{% endif %}
+    {% if keys_restart %} Restart the server to apply the public address (Windows app: File → Restart server).{% endif %}</div>{% endif %}
+  {% if key_groups is none %}
+  <div class="notice warn">API keys can only be viewed and changed on the computer that runs MapProspector.</div>
+  {% else %}
+  <form method="post" action="/settings/keys" autocomplete="off">
+    {% for g in key_groups %}
+    <h3 style="margin-top:14px">{{ g.title }} <a class="hint" href="/guide#{{ g.id }}" style="font-weight:normal">how to get it</a></h3>
+    {% for f in g.fields if not f.more %}{{ key_field(f) }}{% endfor %}
+    {% set more = g.fields | selectattr("more") | list %}
+    {% if more %}<details><summary class="hint">More options</summary>{% for f in more %}{{ key_field(f) }}{% endfor %}</details>{% endif %}
+    {% endfor %}
+    <button class="primary" type="submit" style="margin-top:10px">Save keys</button>
+  </form>
+  {% endif %}
 </div>
 <div class="card" id="ai" style="margin-top:16px">
   <h2>AI platforms</h2>
