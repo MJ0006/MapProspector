@@ -27,7 +27,7 @@
   {% for x in d.rankings %}
   <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-bottom:14px">
     <div class="grid" style="grid-template-columns:repeat({{ x.size }}, 22px)">
-      {% if x.shape == "square" %}{% for rank, ok in x.cells %}<div class="{{ 'rn' if not ok or not rank else 'r1' if rank <= 3 else 'r2' if rank <= 6 else 'r3' if rank <= 10 else 'r4' }}">{{ rank or "" }}</div>{% endfor %}{% endif %}
+      {% for c in x.cells %}{% if c is none %}<div></div>{% else %}{% set rank, ok = c %}<div class="{{ 'rn' if not ok or not rank else 'r1' if rank <= 3 else 'r2' if rank <= 6 else 'r3' if rank <= 10 else 'r4' }}">{{ rank or "" }}</div>{% endif %}{% endfor %}
     </div>
     <div><b>"{{ x.scan.keyword }}"</b> <span class="muted">{{ (x.scan.completed_at or "")[:10] }}</span><br>
       Average rank {{ x.stats.avg_rank_all }} (not found counted as 21) · top-3 at {{ x.stats.top3_pct }}% of points
@@ -43,7 +43,7 @@
 {% if d.reviews is defined %}
 <section><h2>Reviews</h2>
   <div class="tiles"><div class="tile"><b>{{ d.reviews.avg or "—" }}</b>average rating</div><div class="tile"><b>{{ d.reviews.count }}</b>reviews tracked</div>
-    <div class="tile"><b>{{ d.reviews.new | length }}</b>new this period</div><div class="tile"><b>{{ d.reviews.clicked }}</b>review-link clicks</div></div>
+    <div class="tile"><b>{{ d.reviews.new_count }}</b>new this period</div><div class="tile"><b>{{ d.reviews.clicked }}</b>review-link clicks</div></div>
   {% for rv in d.reviews.new %}<p>{{ "★" * (rv.rating or 0) }} {{ (rv.text or "")[:220] }} <span class="muted">{{ rv.review_date }}</span></p>{% endfor %}
 </section>
 {% endif %}

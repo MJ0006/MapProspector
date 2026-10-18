@@ -154,14 +154,22 @@ def extract_json(text: str):
     text = text.strip()
     if text.startswith("```"):
         text = text.split("\n", 1)[1].rsplit("```", 1)[0]
-    # The first "{" or "[" that starts valid JSON wins, so a list of objects comes back whole and a stray
-    # brace in prose ("{business name}") doesn't hide the real JSON after it.
+    # The longest valid JSON value wins: a list of objects comes back whole, and neither a stray "{business name}"
+    # nor a footnote like "[1]" in the prose is mistaken for the answer.
     decoder = json.JSONDecoder()
+    best, best_len, pos = None, 0, 0
     for m in re.finditer(r"[\[{]", text):
+        if m.start() < pos:
+            continue  # inside a value already decoded
         try:
-            return decoder.raw_decode(text[m.start():])[0]
+            value, end = decoder.raw_decode(text, m.start())
         except ValueError:
             continue
+        if end - m.start() > best_len:
+            best, best_len = value, end - m.start()
+        pos = end
+    if best_len:
+        return best
     raise ValueError("No JSON found in AI reply")
 
 

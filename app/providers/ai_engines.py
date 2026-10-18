@@ -40,16 +40,22 @@ def ask(engine: str, question: str, client: httpx.Client | None = None) -> dict:
 
 def _claude(q: str, _http) -> dict:
     # only="claude": this engine measures Claude's own answers, so it never falls back to another platform.
-    text = ai.ask(q + "\n\nSearch the web before answering. List the source URLs you used at the end.", web=True,
+    # Sources go before the JSON line the question ends with, so the JSON stays the last line.
+    text = ai.ask("Search the web before answering, and list the source URLs you used before the final JSON line.\n\n"
+                  + q, web=True,
                   only="claude", purpose="aivis")
     return {"text": text, "sources": URL_RE.findall(text)}
 
 
 def _openai(q: str, http: httpx.Client) -> dict:
-    r = http.post("https://api.openai.com/v1/responses",
-                  headers={"Authorization": f"Bearer {settings.env('OPENAI_API_KEY')}"},
-                  json={"model": settings.env("OPENAI_MODEL", "gpt-4.1-mini"), "input": q,
-                        "tools": [{"type": "web_search"}]})
+    return _responses("https://api.openai.com/v1/responses", settings.env("OPENAI_API_KEY"),
+                      settings.env("OPENAI_MODEL", "gpt-4.1-mini"), q, http)
+
+
+def _responses(url: str, key: str, model: str, q: str, http: httpx.Client) -> dict:
+    """OpenAI-style Responses API with its web_search tool (OpenAI and xAI)."""
+    r = http.post(url, headers={"Authorization": f"Bearer {key}"},
+                  json={"model": model, "input": q, "tools": [{"type": "web_search"}]})
     r.raise_for_status()
     data = r.json()
     text, sources = "", []
@@ -75,22 +81,27 @@ def _perplexity(q: str, http: httpx.Client) -> dict:
 
 def _gemini(q: str, http: httpx.Client) -> dict:
     model = settings.env("GEMINI_MODEL", "gemini-2.5-flash")
+    # Key in a header, never the URL: error messages include the URL and end up in reports you share.
     r = http.post(f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-                  params={"key": settings.env("GEMINI_API_KEY")},
+                  headers={"x-goog-api-key": settings.env("GEMINI_API_KEY")},
                   json={"contents": [{"parts": [{"text": q}]}], "tools": [{"google_search": {}}]})
     r.raise_for_status()
     cand = (r.json().get("candidates") or [{}])[0]
     text = "".join(p.get("text", "") for p in (cand.get("content") or {}).get("parts", []))
     chunks = (cand.get("groundingMetadata") or {}).get("groundingChunks", [])
-    return {"text": text, "sources": [c["web"]["uri"] for c in chunks if c.get("web", {}).get("uri")]}
+    # Grounding URIs are Google redirect links; the real site is in the chunk title (e.g. "acmeplumbing.com").
+    sources = []
+    for c in chunks:
+        web = c.get("web") or {}
+        uri, title = web.get("uri", ""), (web.get("title") or "").strip()
+        if "vertexaisearch" in uri and "." in title and " " not in title:
+            sources.append("https://" + title)
+        elif uri and "vertexaisearch" not in uri:
+            sources.append(uri)
+    return {"text": text, "sources": sources}
 
 
 def _grok(q: str, http: httpx.Client) -> dict:
-    r = http.post("https://api.x.ai/v1/chat/completions",
-                  headers={"Authorization": f"Bearer {settings.env('XAI_API_KEY')}"},
-                  json={"model": settings.env("XAI_MODEL", "grok-4"), "messages": [{"role": "user", "content": q}],
-                        "search_parameters": {"mode": "auto", "return_citations": True}})
-    r.raise_for_status()
-    data = r.json()
-    text = data["choices"][0]["message"]["content"]
-    return {"text": text, "sources": data.get("citations") or URL_RE.findall(text)}
+    # xAI retired Live Search (search_parameters, now HTTP 410); its Responses API has a web_search tool.
+    return _responses("https://api.x.ai/v1/responses", settings.env("XAI_API_KEY"), settings.env("XAI_MODEL", "grok-4"),
+                      q, http)

@@ -18,6 +18,7 @@ def isolated(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "DB_PATH", tmp_path / "test.db")
     monkeypatch.setattr(settings, "VAULT_DIR", tmp_path / "vaults")
     monkeypatch.setattr(settings, "UPLOAD_DIR", tmp_path / "uploads")
+    monkeypatch.setattr(settings, "ENV_FILE", tmp_path / ".env")  # Settings → API keys writes here, never the real one
     for key in ("GOOGLE_API_KEY", "DATAFORSEO_LOGIN", "DATAFORSEO_PASSWORD", "OPENAI_API_KEY",
                 "PERPLEXITY_API_KEY", "GEMINI_API_KEY", "XAI_API_KEY", "SMTP_HOST",
                 "GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET"):

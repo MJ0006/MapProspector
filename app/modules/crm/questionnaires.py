@@ -47,7 +47,7 @@ def _parse(text: str) -> list[dict]:
     out = []
     for i, line in enumerate(l for l in text.splitlines() if l.strip()):
         parts = [p.strip() for p in line.split("|")]
-        qtype = parts[1] if len(parts) > 1 and parts[1] in TYPES else "text"
+        qtype = parts[1].lower() if len(parts) > 1 and parts[1].lower() in TYPES else "text"
         opts = [o.strip() for o in parts[2].split(",")] if len(parts) > 2 else []
         out.append({"id": f"q{i + 1}", "label": parts[0], "type": qtype, "options": opts})
     return out

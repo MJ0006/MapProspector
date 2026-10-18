@@ -27,6 +27,7 @@
     {% if status == "draft" %}<button class="primary" type="submit">Approve{{ " & send" if m.channel == "email" and modules.smtp else "" }}</button>{% endif %}
     {% if status in ["draft", "approved", "failed"] %}
       <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('body-{{ m.id }}').value)">Copy text</button>
+      {% if status == "failed" %}<button type="submit" formaction="/crm/outbox/{{ m.id }}/retry">Retry (back to drafts)</button>{% endif %}
       <button type="submit" formaction="/crm/outbox/{{ m.id }}/mark_sent">Mark sent</button>
       <button type="submit" formaction="/crm/outbox/{{ m.id }}/cancel" class="btn-danger">Cancel</button>
     {% endif %}

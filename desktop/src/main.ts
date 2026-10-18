@@ -117,7 +117,8 @@ function buildMenu(): Menu {
     {
       label: 'File',
       submenu: [
-        { label: 'API keys and settings (.env)…', click: actions.openSettingsFile },
+        { label: 'API keys…', click: () => server.url && void win?.loadURL(`${server.url}/settings#keys`) },
+        { label: 'Open the .env file', click: actions.openSettingsFile },
         { label: 'Restart server (after editing .env)', click: () => void restartServer() },
         { type: 'separator' },
         { label: 'Open data folder', click: actions.openDataFolder },

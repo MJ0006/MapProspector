@@ -1,4 +1,5 @@
 """Sales pipelines (D2): multiple Kanban pipelines, custom stages with win %, deals per contact."""
+import re
 from fastapi import APIRouter, Form, HTTPException, Request
 
 from app import db
@@ -33,11 +34,24 @@ def create_deal(contact_id: int, title: str, pipeline_id: int | None = None, sta
                 value: float | None = None) -> int:
     pipeline_id = pipeline_id or ensure_default()
     if not stage_id:
-        stage_id = db.one("SELECT id FROM pipeline_stages WHERE pipeline_id = ? ORDER BY position LIMIT 1", pipeline_id)["id"]
+        first = db.one("SELECT id FROM pipeline_stages WHERE pipeline_id = ? ORDER BY position LIMIT 1", pipeline_id)
+        if not first:
+            raise HTTPException(404, "That pipeline doesn't exist or has no stages.")
+        stage_id = first["id"]
     did = db.insert("deals", pipeline_id=pipeline_id, stage_id=stage_id, contact_id=contact_id, title=title,
                     value=value, created_at=db.now(), updated_at=db.now())
     automations.fire("deal_created", contact_id, deal_id=did)
     return did
+
+
+def stage_status(stage: dict) -> str:
+    """won at 100% or a stage named like "Won"/"Closed won"; lost for "Lost"/"Closed lost"; otherwise open."""
+    name = (stage["name"] or "").strip().lower()
+    if stage["win_pct"] == 100 or re.fullmatch(r"(closed[ -])?won", name):
+        return "won"
+    if re.fullmatch(r"(closed[ -])?lost", name):
+        return "lost"
+    return "open"
 
 
 def move_deal(deal_id: int, stage_id: int) -> None:
@@ -45,7 +59,7 @@ def move_deal(deal_id: int, stage_id: int) -> None:
     stage = db.one("SELECT * FROM pipeline_stages WHERE id = ? AND pipeline_id = ?", stage_id, deal["pipeline_id"])
     if not stage:
         raise HTTPException(400, "Stage is not in this pipeline")
-    status = "won" if stage["win_pct"] == 100 else "lost" if stage["name"].lower() == "lost" else "open"
+    status = stage_status(stage)
     db.update("deals", deal_id, stage_id=stage_id, status=status, updated_at=db.now())
     if deal["contact_id"]:
         db.insert("activities", contact_id=deal["contact_id"], type="stage",

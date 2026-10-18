@@ -8,6 +8,7 @@ import csv
 import hashlib
 import json
 import secrets
+from datetime import datetime
 from pathlib import Path
 
 from app import ai, brain, db, jobs, journal, settings
@@ -16,6 +17,24 @@ from app.providers import gbp_api
 
 def _hash(name: str | None) -> str | None:
     return hashlib.sha256(name.encode()).hexdigest()[:16] if name else None
+
+
+DATE_FORMATS = ("%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y", "%d.%m.%Y", "%b %d, %Y", "%B %d, %Y", "%d %b %Y", "%d %B %Y")
+
+
+def iso_date(value) -> str | None:
+    """Review dates as YYYY-MM-DD, so "new this period" comparisons work. Unknown formats are kept as None."""
+    value = str(value or "").strip()
+    if not value:
+        return None
+    if len(value) >= 10 and value[4] == "-" and value[7] == "-":
+        value = value[:10]  # ISO date or timestamp (Google's createTime)
+    for fmt in DATE_FORMATS:
+        try:
+            return datetime.strptime(value, fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    return None
 
 
 def import_file(company_id: int, path: Path) -> int:
@@ -33,7 +52,7 @@ def import_file(company_id: int, path: Path) -> int:
         if db.one("SELECT 1 FROM reviews WHERE company_id = ? AND external_id = ?", company_id, ext):
             continue
         db.insert("reviews", company_id=company_id, external_id=ext, author_hash=_hash(r.get("author") or r.get("name")),
-                  rating=rating, text=r.get("text") or r.get("comment") or "", review_date=r.get("date") or r.get("createTime"),
+                  rating=rating, text=r.get("text") or r.get("comment") or "", review_date=iso_date(r.get("date") or r.get("createTime")),
                   reply_status="published" if r.get("reply") else "none", reply_text=r.get("reply"), created_at=db.now())
         n += 1
     return n
@@ -53,7 +72,7 @@ def sync_from_google(company_id: int) -> int:
         reply = (r.get("reviewReply") or {}).get("comment")
         db.insert("reviews", company_id=company_id, external_id=ext,
                   author_hash=_hash((r.get("reviewer") or {}).get("displayName")), rating=stars.get(r.get("starRating")),
-                  text=r.get("comment") or "", review_date=(r.get("createTime") or "")[:10],
+                  text=r.get("comment") or "", review_date=iso_date(r.get("createTime")),
                   reply_status="published" if reply else "none", reply_text=reply, created_at=db.now())
         n += 1
     return n

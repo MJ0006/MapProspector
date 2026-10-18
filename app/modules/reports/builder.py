@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from app import brain, db, jobs, journal, mailer, markdown, settings
 from app.modules.gbp import reviews
 from app.modules.rank import engine as rank
+from app.modules.rank import grid as rank_grid
 from app.web import brand, templates
 
 SECTIONS = {
@@ -24,6 +25,25 @@ def _since(days: int) -> str:
     return (datetime.now(timezone.utc) - timedelta(days=days)).isoformat(timespec="seconds")
 
 
+def _cells(scan: dict, pts: list[dict]) -> list:
+    """The scan as a size×size matrix for the report's mini map: (rank, checked) per grid square, None where a circle or
+    area scan has no point, so every shape lines up the way it does on the live map."""
+    size = scan["grid_size"] or 1
+    stats = db.loads(scan["stats"], {}) or {}
+    try:
+        layout = rank_grid.generate(scan["center_lat"], scan["center_lng"], size, scan["spacing_m"] or 1000,
+                                    scan["shape"] or "square", stats.get("polygon"))
+    except (ValueError, TypeError):
+        return [(p["rank"], p["results"] is not None) for p in pts]
+    matrix: list = [None] * (size * size)
+    by_idx = {p["idx"]: p for p in pts}
+    for g in layout:
+        p = by_idx.get(g["idx"])
+        if p:
+            matrix[g["row"] * size + g["col"]] = (p["rank"], p["results"] is not None)
+    return matrix
+
+
 def gather(company_id: int, sections: list[str], days: int) -> dict:
     co = db.one("SELECT * FROM companies WHERE id = ?", company_id)
     since = _since(days)
@@ -40,18 +60,21 @@ def gather(company_id: int, sections: list[str], days: int) -> dict:
             rows.append({"scan": s, "stats": st, "prev": pst,
                          "change": round(pst["avg_rank_all"] - st["avg_rank_all"], 2) if pst and st.get("avg_rank_all") and pst.get("avg_rank_all") else None,
                          "grid": [p["rank"] for p in pts], "size": s["grid_size"], "shape": s["shape"],
-                         "cells": [(p["rank"], p["results"] is not None) for p in pts]})
+                         "cells": _cells(s, pts)})
         data["rankings"] = rows
     if "reviews" in sections:
         data["reviews"] = {**reviews.stats(company_id),
                            "new": db.all("SELECT rating, text, review_date FROM reviews WHERE company_id = ? AND COALESCE(review_date, created_at) >= ? "
-                                         "ORDER BY review_date DESC LIMIT 10", company_id, since)}
+                                         "ORDER BY review_date DESC LIMIT 10", company_id, since),
+                           "new_count": db.one("SELECT COUNT(*) n FROM reviews WHERE company_id = ? AND "
+                                               "COALESCE(review_date, created_at) >= ?", company_id, since)["n"]}
     if "activity" in sections:
         data["activity"] = {
             "posts": db.all("SELECT body, published_at FROM gbp_posts WHERE company_id = ? AND status = 'published' AND published_at >= ?", company_id, since),
             "photos": db.one("SELECT COUNT(*) n FROM photos WHERE company_id = ? AND status = 'published' AND published_at >= ?", company_id, since)["n"],
             "replies": db.one("SELECT COUNT(*) n FROM reviews WHERE company_id = ? AND reply_status = 'published' AND replied_at >= ?", company_id, since)["n"],
-            "tasks": db.all("SELECT title FROM tasks WHERE company_id = ? AND done = 1 AND created_at >= ?", company_id, since),
+            "tasks": db.all("SELECT title FROM tasks WHERE company_id = ? AND done = 1 AND COALESCE(done_at, created_at) >= ?",
+                            company_id, since),
         }
     if "lock" in sections:
         data["lock"] = db.all("SELECT field, live_value, approved_value, status, detected_at FROM profile_changes "
@@ -95,6 +118,10 @@ def send_run(run_id: int) -> None:
     co = db.one("SELECT name FROM companies WHERE id = ?", rep["company_id"])
     link = f"{settings.PUBLIC_BASE_URL}/share/report/{run['token']}"
     for to in [e.strip() for e in (rep["recipients"] or "").split(",") if e.strip()]:
+        # Each run's email carries its own link, so a recipient already queued for this run is skipped (resends after
+        # an interrupted send never email anyone twice).
+        if db.one("SELECT 1 FROM outbox WHERE origin = 'report' AND to_addr = ? AND body LIKE ?", to, f"%{run['token']}%"):
+            continue
         mailer.queue("email", None, to, f"{rep['name']}: {co['name']}",
                      f"Hi,\n\nYour latest report for {co['name']} is ready:\n{link}\n\nThanks,\n{brand()['name']}",
                      origin="report", approved=True)
@@ -103,7 +130,10 @@ def send_run(run_id: int) -> None:
 
 @jobs.on_startup
 def interrupted_report_sends() -> None:
-    db.run("UPDATE report_runs SET status = 'approved' WHERE status = 'sending'")  # only queues emails: safe to redo
+    """A send cut off by closing the app is finished now; recipients already queued are skipped."""
+    for r in db.all("SELECT id FROM report_runs WHERE status = 'sending'"):
+        db.update("report_runs", r["id"], status="approved")
+        send_run(r["id"])
 
 
 def next_run_at(schedule: str, after: datetime) -> str | None:

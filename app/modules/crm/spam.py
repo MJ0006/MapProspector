@@ -25,11 +25,14 @@ def check(data: dict, ip: str | None = None, country: str | None = None) -> tupl
     emails = _emails(data)
     for rule in db.all("SELECT * FROM spam_rules WHERE active = 1"):
         kind, value = rule["kind"], (rule["value"] or "").strip().lower()
-        if kind == "keyword" and value and value in text:
+        # Whole words: a rule "sex" must not block "Essex".
+        if kind == "keyword" and value and re.search(rf"(?<![a-z0-9]){re.escape(value)}(?![a-z0-9])", text):
             return True, f"keyword: {value}"
         if kind == "email" and value in emails:
             return True, f"email: {value}"
-        if kind == "domain" and value and (any(e.endswith("@" + value) for e in emails) or value in text):
+        # The domain or its subdomains ("mail.spam.com"), never a longer name ("nospam.com").
+        if kind == "domain" and value and (any(re.search(rf"[@.]{re.escape(value)}$", e) for e in emails)
+                                           or re.search(rf"(?<![a-z0-9.-]){re.escape(value)}(?![a-z0-9-])", text)):
             return True, f"domain: {value}"
         if kind == "ip" and ip and value == ip:
             return True, f"ip: {ip}"

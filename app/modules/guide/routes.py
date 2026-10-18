@@ -48,7 +48,7 @@ KEYS = [
             "Add funds: dashboard → <b>Billing / Payments</b>.",
             "Open <b>API Access</b> in the dashboard. Your <b>API login</b> is shown there. The <b>API password</b> is not "
             "your account password: it's shown in the first 24 hours, or use the option there to email it to you.",
-            "Paste both into <code>.env</code>, restart, then pick <b>DataForSEO</b> as the provider on <b>Rank tracker → New scan</b>.",
+            "Paste both on <b>Settings → API keys</b> → <b>Save keys</b>, then pick <b>DataForSEO</b> as the provider on <b>Rank tracker → New scan</b>.",
         ],
         "env": "DATAFORSEO_LOGIN=you@example.com\nDATAFORSEO_PASSWORD=api-password-from-the-dashboard",
     },
@@ -73,7 +73,7 @@ KEYS = [
             "<b>Credentials → Create credentials → OAuth client ID</b> → type <b>Web application</b>. Under "
             "<b>Authorized redirect URIs</b> add exactly <code>http://127.0.0.1:8000/gbp/oauth/callback</code> → "
             "<b>Create</b>. Copy the client ID and secret.",
-            "Paste them into <code>.env</code>, restart, then <b>Settings → Connect Google account</b>. Sign-in opens in "
+            "Paste them on <b>Settings → API keys</b> → <b>Save keys</b>, then <b>Settings → Connect Google account</b>. Sign-in opens in "
             "your browser (Google doesn't allow it inside apps).",
             "Then open a client → <b>Overview</b> → <b>Pick from your Google account</b> to link its Business Profile location and Search Console site.",
             "While the app is in <i>Testing</i> on the consent screen, Google expires the sign-in after 7 days and "

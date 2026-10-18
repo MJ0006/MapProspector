@@ -186,7 +186,7 @@ def task_new(title: str = Form(...), due_at: str = Form(""), contact_id: str = F
 @router.post("/crm/tasks/{tid}/done")
 def task_done(tid: int, back: str = Form("/crm/tasks")):
     t = row_or_404("tasks", tid)
-    db.update("tasks", tid, done=0 if t["done"] else 1)
+    db.update("tasks", tid, done=0 if t["done"] else 1, done_at=None if t["done"] else db.now())
     if t["contact_id"] and not t["done"]:
         log_activity(t["contact_id"], "task", f"Done: {t['title']}")
     return redirect(safe_back(back, "/crm/tasks"))
@@ -212,6 +212,9 @@ def outbox_action(oid: int, action: str, body: str = Form(None), subject: str = 
     if ai_text is not None and m["status"] == "draft" and action in ("approve", "cancel"):
         journal.decision("outbox", action, draft=ai_text, final=None if action == "cancel" else (body if body is not None else m["body"]),
                          subject_type="outbox", subject_id=oid)
+    if m["status"] in ("sending", "sent", "cancelled") and action != "retry":
+        # being sent right now, or done: editing, cancelling or marking it sent would go wrong
+        return redirect(f"/crm/outbox?status={m['status']}")
     if body is not None:
         db.update("outbox", oid, body=body, subject=subject if subject is not None else m["subject"],
                   to_addr=(to_addr.strip() if to_addr is not None else m["to_addr"]))
@@ -227,6 +230,9 @@ def outbox_action(oid: int, action: str, body: str = Form(None), subject: str = 
             cols["body"] = mailer.with_current_footer(m["body"] or "")
         db.update("outbox", oid, **cols)
         mailer.send(oid)
+    elif action == "retry":  # a failed email goes back to drafts, to be approved again
+        if m["status"] == "failed":
+            db.update("outbox", oid, status="draft", error=None)
     elif action == "cancel":
         db.update("outbox", oid, status="cancelled")
     elif action == "mark_sent":  # SMS or emails you sent yourself

@@ -50,8 +50,13 @@ def login_form(next: str = "/"):
 
 
 @app.post("/login")
-def login_submit(password: str = Form(""), next: str = Form("/")):
-    return security.login(password, next)
+def login_submit(request: Request, password: str = Form(""), next: str = Form("/")):
+    return security.login(request, password, next)
+
+
+@app.post("/logout")
+def logout():
+    return security.logout()
 
 
 @app.get("/")
@@ -80,12 +85,15 @@ def notices_seen(request: Request):
 
 
 @app.get("/settings")
-def settings_page(request: Request, saved: int = 0, signin: str = "", opened: int = 1):
+def settings_page(request: Request, saved: int = 0, signin: str = "", opened: int = 1, keys_saved: int = -1,
+                  restart: int = 0):
     from app.modules.ai_platforms.routes import card_context
+    from app.modules.keys.routes import groups as key_groups
     google_connected = db.one("SELECT 1 FROM oauth_tokens WHERE provider = 'google'") is not None
     return render(request, "settings.html", title="Settings", integrations=INTEGRATIONS,
                   saved=saved, google_connected=google_connected, env_file=settings.ENV_FILE,
-                  signin=signin, signin_opened=opened, **card_context())
+                  signin=signin, signin_opened=opened, key_groups=key_groups() if security.is_local(request) else None,
+                  keys_saved=keys_saved, keys_restart=restart, **card_context())
 
 
 @app.post("/settings")

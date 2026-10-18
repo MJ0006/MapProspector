@@ -162,6 +162,9 @@ def _advance(run: dict, ctx: dict) -> None:
             break
         action = actions[step]
         step += 1
+        # Save progress before acting: if the app closes mid-step, recovery moves on instead of repeating it
+        # (an email may be lost, but is never sent twice).
+        db.update("automation_runs", run_id, step=step, context=ctx, updated_at=db.now())
         try:
             outcome = execute(action, contact, ctx)
         except Exception as exc:
@@ -171,6 +174,7 @@ def _advance(run: dict, ctx: dict) -> None:
                       log=_log(run, f"step {step} {action.get('type')} failed: {exc}"), updated_at=db.now())
             return
         run["log"] = json.dumps(_log(run, f"step {step} {action.get('type')}: {outcome['note']}"))
+        db.update("automation_runs", run_id, log=db.loads(run["log"]), context=ctx, updated_at=db.now())
         if outcome.get("stop"):
             db.update("automation_runs", run_id, status="stopped", step=step, log=db.loads(run["log"]),
                       context=ctx, updated_at=db.now())
@@ -289,5 +293,6 @@ def _advance_safely(run_id: int) -> None:
 @jobs.on_startup
 def resume_interrupted() -> None:
     """Runs that were going when the app closed continue from their current step."""
-    for r in db.all("SELECT id FROM automation_runs WHERE status = 'running'"):
+    for r in db.all("SELECT * FROM automation_runs WHERE status = 'running'"):
+        db.update("automation_runs", r["id"], log=_log(r, f"app restarted: continuing after step {r['step']}"))
         jobs.submit(_advance_safely, r["id"])

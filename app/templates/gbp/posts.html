@@ -35,7 +35,8 @@
       </div>
       {% if p.error %}<div class="notice warn" style="margin-top:8px">{{ p.error }}</div>{% endif %}
       <div class="field" style="margin-top:8px"><textarea name="body" id="post-{{ p.id }}" style="min-height:120px" {% if p.status == 'published' %}readonly{% endif %}>{{ p.body }}</textarea></div>
-      {% if p.status != "published" %}
+      {% if p.status == "publishing" %}<p class="hint">Publishing to Google… refresh in a moment.</p>{% endif %}
+      {% if p.status not in ("published", "publishing") %}
       <div class="row">
         <div class="field"><select name="cta">{% for k, v in ctas.items() %}<option value="{{ k }}" {% if p.cta == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></div>
         <div class="field"><input type="url" name="cta_url" value="{{ p.cta_url or '' }}" placeholder="Button link"></div>
