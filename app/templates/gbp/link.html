@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+{% include "clients/_tabs.html" %}
+{% if error %}<div class="notice bad">{{ error }}</div>{% endif %}
+<form class="card" method="post" action="/clients/{{ co.id }}/settings">
+  <h2>Link Google location and Search Console</h2>
+  <input type="hidden" name="name" value="{{ co.name }}"><input type="hidden" name="website" value="{{ co.website or '' }}">
+  <input type="hidden" name="phone" value="{{ co.phone or '' }}"><input type="hidden" name="address" value="{{ co.address or '' }}">
+  <input type="hidden" name="review_link" value="{{ co.review_link or '' }}"><input type="hidden" name="brand_voice" value="{{ co.brand_voice or '' }}">
+  <div class="field"><label>Business Profile location</label><select name="gbp_location"><option value="">—</option>
+    {% for l in locations %}<option value="{{ l.name }}" {% if co.gbp_location == l.name %}selected{% endif %}>{{ l.title }} — {{ l.address }}</option>{% endfor %}</select></div>
+  <div class="field"><label>Search Console property</label><select name="gsc_site"><option value="">—</option>
+    {% for s in sites %}<option {% if co.gsc_site == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
+  <button class="primary" type="submit">Save</button>
+</form>
+{% endblock %}

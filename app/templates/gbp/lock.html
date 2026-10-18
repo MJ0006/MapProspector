@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+{% include "clients/_tabs.html" %}
+<div class="grid grid-2">
+  <div class="card">
+    <h2>Approved profile</h2>
+    <p class="hint">MapProspector re-reads the public Google listing every 6 hours (while running) and flags anything that differs from this approved version, whether the change came from a Google update, a user suggestion or someone with access.</p>
+    {% if not modules.places %}<div class="notice warn">Needs GOOGLE_API_KEY to read the live listing.</div>{% endif %}
+    {% if snapshot %}
+    <table>{% for k, label in fields.items() %}<tr><td class="hint">{{ label }}</td><td>{{ snapshot[k] | join("; ") if snapshot[k] is iterable and snapshot[k] is not string else (snapshot[k] or "—") }}</td></tr>{% endfor %}</table>
+    <p class="hint">Last checked: {{ (co.lock_checked_at or "never")[:16].replace("T", " ") }}</p>
+    <div class="actions">
+      <form method="post" action="/clients/{{ co.id }}/lock/check"><button>Check now</button></form>
+      <form method="post" action="/clients/{{ co.id }}/lock/approve" onsubmit="return confirm('Replace the approved version with what Google shows now?')"><button>Approve current listing</button></form>
+    </div>
+    {% else %}
+    <p>No approved version yet.</p>
+    <form method="post" action="/clients/{{ co.id }}/lock/approve"><button class="primary" {% if not modules.places %}disabled{% endif %}>Lock the current listing</button></form>
+    {% endif %}
+  </div>
+  <div class="card">
+    <h2>Detected changes</h2>
+    {% for ch in changes %}
+    <div style="border-bottom:1px solid var(--border);padding:8px 0">
+      <div class="actions" style="justify-content:space-between"><b>{{ fields[ch.field] }}</b>
+        <span class="badge {{ 'bad' if ch.status == 'open' else '' }}">{{ ch.status }}</span></div>
+      <div class="hint">Approved: {{ ch.approved_value or "—" }}</div>
+      <div>Now on Google: <b>{{ ch.live_value or "—" }}</b></div>
+      <div class="hint">{{ (ch.detected_at or "")[:16].replace("T", " ") }}</div>
+      {% if ch.status == "open" %}
+      <div class="actions" style="margin-top:6px">
+        {% if connected and co.gbp_location and ch.field in revertible %}<form method="post" action="/gbp/changes/{{ ch.id }}/revert"><button class="btn-sm btn-primary">Revert via Google</button></form>
+        {% else %}<span class="hint">Fix it in Google Business Profile, then:</span><form method="post" action="/gbp/changes/{{ ch.id }}/fixed"><button class="btn-sm">Mark fixed</button></form>{% endif %}
+        <form method="post" action="/gbp/changes/{{ ch.id }}/accept"><button class="btn-sm">Accept change</button></form>
+        <form method="post" action="/gbp/changes/{{ ch.id }}/dismiss"><button class="btn-sm">Dismiss</button></form>
+      </div>
+      {% endif %}
+    </div>
+    {% else %}<div class="empty">No changes detected.</div>{% endfor %}
+  </div>
+</div>
+{% endblock %}

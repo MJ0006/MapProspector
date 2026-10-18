@@ -76,6 +76,9 @@ CREATE TABLE IF NOT EXISTS companies (       -- clients / lead sources
   vault_slug TEXT,
   review_link TEXT,
   brand_voice TEXT,                  -- notes that prime AI drafts (B1/B2)
+  gbp_location TEXT,                 -- "accounts/X/locations/Y" once Google is connected
+  gsc_site TEXT,                     -- Search Console property, e.g. "sc-domain:example.com"
+  lock_checked_at TEXT,
   created_at TEXT
 );
 

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+{% include "clients/_tabs.html" %}
+<div class="actions" style="margin-bottom:12px">
+  {% for d in [7, 28, 90] %}<a class="btn {{ 'btn-primary' if days == d else '' }}" href="?days={{ d }}">{{ d }} days</a>{% endfor %}
+  <span class="hint">{{ start }} → {{ end }} (Google data lags ~3 days)</span>
+</div>
+{% if error %}<div class="notice bad">{{ error }}</div>{% endif %}
+<div class="card">
+  <h2>Business Profile performance</h2>
+  {% if perf %}
+  <div class="grid grid-3">
+    {% for label, v in perf.items() %}
+    <div class="card stat"><b>{{ v.current }}</b><span>{{ label }} · prior {{ v.prior }}{% if v.change_pct is not none %} ({{ "+" if v.change_pct > 0 else "" }}{{ v.change_pct }}%){% endif %}</span></div>
+    {% endfor %}
+  </div>
+  {% elif connected and co.gbp_location %}<div class="empty">No data returned.</div>
+  {% else %}
+  <p>Connect Google (Settings) and link this client's location to load live performance. Until then, export the Performance CSV from Google Business Profile and upload it on the Overview tab as "Business Profile performance CSV"; Local SEO Brain adds it to the scorecard.</p>
+  {% endif %}
+</div>
+<div class="card">
+  <h2>Search Console: queries</h2>
+  {% if queries %}
+  <div class="table-wrap"><table>
+    <tr><th>Query</th><th class="num">Clicks</th><th class="num">Impressions</th><th class="num">CTR</th><th class="num">Avg position</th></tr>
+    {% for q in queries[:100] %}<tr><td>{{ q.query }}</td><td class="num">{{ q.clicks }}</td><td class="num">{{ q.impressions }}</td><td class="num">{{ q.ctr }}%</td><td class="num">{{ q.position }}</td></tr>{% endfor %}
+  </table></div>
+  <p class="hint"><a href="/tools?prompt=ctr-audit-prompt&company_id={{ co.id }}">Run the brain's CTR audit</a> with these numbers pasted into "Other confirmed facts".</p>
+  {% elif co.gsc_site %}<div class="empty">No query data for this range.</div>
+  {% else %}<p>Set the Search Console property in client settings (e.g. <code>sc-domain:example.com</code>) after connecting Google.</p>{% endif %}
+</div>
+{% endblock %}

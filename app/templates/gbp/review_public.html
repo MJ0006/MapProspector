@@ -1,0 +1,16 @@
+{% extends "share_base.html" %}
+{% block content %}
+<div class="card" style="max-width:560px;text-align:center">
+  <h1>Thanks for choosing {{ co.name }}</h1>
+  <p style="margin-top:10px">Would you share your experience on Google? It takes a minute and helps neighbours find us.</p>
+  <p><a class="btn btn-primary" href="/r/{{ token }}/go" style="font-size:16px;padding:10px 18px">Leave a Google review</a></p>
+  <details style="text-align:left;margin-top:18px">
+    <summary>Something we could do better? Tell us privately too</summary>
+    {% if sent %}<div class="notice good" style="margin-top:8px">Thank you, the team will read this.</div>
+    {% else %}<form method="post" action="/r/{{ token }}/feedback" style="margin-top:8px">
+      <div class="field"><textarea name="message" required></textarea></div><button type="submit">Send to {{ co.name }}</button>
+    </form>{% endif %}
+    <p class="hint" style="margin-top:6px">This doesn't replace a public review. You're always welcome to post one on Google.</p>
+  </details>
+</div>
+{% endblock %}
