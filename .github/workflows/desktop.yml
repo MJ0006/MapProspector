@@ -14,7 +14,7 @@ on:
   push:
     branches: ['**']
     tags: ['desktop-v*']
-    paths: ['desktop/**', '.github/workflows/desktop.yml']
+    paths: ['desktop/**', 'app/**', 'tests/**', 'vendor/**', 'requirements.txt', '.github/workflows/desktop.yml']
 
 permissions:
   contents: read
