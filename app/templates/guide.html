@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+{% macro shot(name, caption) %}<figure class="guide-shot"><a href="/static/guide/{{ name }}.webp" target="_blank"><img src="/static/guide/{{ name }}.webp" alt="{{ caption }}" loading="lazy"></a><figcaption>{{ caption }}</figcaption></figure>{% endmacro %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Guide</h1><p>Everything MapProspector does, step by step, with the keys each part needs. Screenshots use demo data.</p></div>
+</div>
+
+<div class="guide">
+<nav class="guide-toc card">
+  <b>On this page</b>
+  <a href="#setup">Your setup</a>
+  <a href="#start">1. First run</a>
+  <a href="#ai">2. AI platforms</a>
+  <a href="#keys">3. API keys</a>
+  {% for k in keys %}<a class="sub" href="#{{ k.id }}">{{ k.title }}</a>{% endfor %}
+  <a href="#find">4. Finding clients</a>
+  <a href="#crm">5. CRM and outreach</a>
+  <a href="#clients">6. Running a client's local SEO</a>
+  <a href="#reports">7. Reports</a>
+  <a href="#ask">8. Ask, Journal and lessons</a>
+  <a href="#pages">9. Every page</a>
+  <a href="#rules">10. Rules the app follows</a>
+  <a href="#help">11. Troubleshooting</a>
+</nav>
+
+<div class="guide-body">
+
+<section class="card" id="setup">
+  <h2>Your setup</h2>
+  <p class="hint">What's switched on right now. Everything works without keys on demo data; each key turns on one part.</p>
+  <div class="table-wrap"><table>
+    {% for i in checklist %}
+    <tr><td style="width:28px">{% if i.on %}<span class="badge good">✓</span>{% else %}<span class="badge">–</span>{% endif %}</td>
+      <td><a href="{{ i.href }}">{{ i.title }}</a></td><td class="hint">{{ i.detail }}</td></tr>
+    {% endfor %}
+  </table></div>
+  <p class="hint">Keys go in <code>{{ env_file }}</code>. In the Windows app: <b>File → API keys and settings (.env)</b>, save, then
+    <b>File → Restart server</b>.</p>
+</section>
+
+<section class="card" id="start">
+  <h2>1. First run</h2>
+  <ol>
+    <li><b>Install:</b> run <code>MapProspector-Setup-x.y.z.exe</code> (from GitHub → Actions → <i>Windows app</i> → Artifacts, or a Release).
+      Windows SmartScreen warns because the app isn't code-signed: <b>More info → Run anyway</b>.</li>
+    <li><b>Open it</b> from the Start menu or desktop shortcut. It starts its own server and shows the Dashboard.</li>
+    <li><b>Your data</b> (database, client vaults, uploads, <code>.env</code>) lives in <code>%APPDATA%\MapProspector</code>.
+      Updating or uninstalling the app keeps it. <b>File → Open data folder</b> takes you there; back it up by copying it.</li>
+    <li><b>Closing the window</b> keeps MapProspector in the system tray, so schedules, automations and review syncs keep running.
+      Right-click the tray icon to quit, or turn on <b>Start when I sign in to Windows</b>.</li>
+    <li><b>Light / dark:</b> the <b>◐ Theme</b> button at the bottom of the menu.</li>
+    <li>From VS Code instead: see the README (<code>uvicorn app.main:app</code>, then open http://127.0.0.1:8000).</li>
+  </ol>
+  {{ shot("dashboard", "Dashboard: counts, recent scans and open tasks") }}
+</section>
+
+<section class="card" id="ai">
+  <h2>2. AI platforms (drafts with your own subscriptions)</h2>
+  <p>Posts, review replies, outreach emails, content tools, citation lookups, Ask and lesson suggestions are written by your own
+    subscriptions, in the order you set on <b>Settings → AI platforms</b>. When one hits its daily or weekly limit, the next one answers,
+    the notice bar tells you (e.g. <i>&ldquo;Claude usage limit reached: using ChatGPT until 15:00&rdquo;</i>), and the Journal records it.
+    You only need one.</p>
+  {% for a in ai_steps %}
+  <h3>{{ a.title }}</h3>
+  <ol>{% for s in a.steps %}<li>{{ s | safe }}</li>{% endfor %}</ol>
+  {% endfor %}
+  <p class="hint">Signing in happens in each company's own tool; MapProspector never sees your passwords. Every platform runs read-only
+    and can't change your data. Citation lookups need web search, so they skip Ollama; Ask reads your data, so it uses Claude, ChatGPT or Gemini.
+    AI visibility always measures each engine itself and never falls back.</p>
+  {{ shot("settings-ai", "Settings → AI platforms: order, status, Sign in, Try again now, local model") }}
+</section>
+
+<section class="card" id="keys">
+  <h2>3. API keys, click by click</h2>
+  <p>All optional. Each module switches itself off without its key, and <b>Settings</b> shows what is on. After editing
+    <code>.env</code>, restart the server (Windows app: <b>File → Restart server</b>).</p>
+  {{ shot("settings", "Settings: which integrations are on, Google account, branding") }}
+</section>
+
+{% for k in keys %}
+<section class="card" id="{{ k.id }}">
+  <h2>{{ k.title }}</h2>
+  <p><b>Turns on:</b> {{ k.unlocks }}</p>
+  {% if k.cost %}<p class="hint"><b>Cost:</b> {{ k.cost }}</p>{% endif %}
+  <ol>{% for s in k.steps %}<li>{{ s | safe }}</li>{% endfor %}</ol>
+  {% if k.env %}<p class="hint">Add to <code>.env</code>:</p><pre class="guide-env">{{ k.env }}</pre>{% endif %}
+  <p class="hint">Keys: {% for key in k["keys"] + (k.optional_keys or []) %}<code>{{ key }}</code>{{ ", " if not loop.last }}{% endfor %}</p>
+</section>
+{% endfor %}
+
+<section class="card" id="find">
+  <h2>4. Finding clients</h2>
+  <ol>
+    <li><b>Find leads:</b> type a niche (e.g. <i>roofer</i>) and an area → <b>Search</b>. Each result shows opportunity flags
+      (no website, few reviews, low rating) so you see who needs help. Filters: no website only, max rating, max reviews.
+      Without a Google key it shows clearly labelled demo businesses.</li>
+    <li><b>Save lead</b> adds the business to Contacts. <b>Save + heat map</b> saves it and opens a new scan for it.</li>
+    <li><b>New rank scan:</b> keywords (one per line), provider (Places, DataForSEO or demo), surface, grid size, spacing and shape.
+      <b>Preview on map</b> shows the points and how many searches it costs → <b>Run scan</b>. Add a schedule to repeat it.</li>
+    <li><b>Heat map:</b> each pin is where that business ranks when someone searches from that spot. Click a competitor in
+      <i>Flip the map</i> to see their map instead: that's your sales story (&ldquo;they own the north side, you don't&rdquo;).</li>
+    <li><b>Share link</b> gives a page without the app's menus to send to the prospect; <b>Print / PDF</b> makes a PDF.</li>
+    <li>On the contact: <b>Run website audit</b> (listing and website checks, each showing what it observed) and <b>AI visibility</b>
+      (how AI assistants answer about the business). <b>Draft outreach email (AI)</b> on the audit writes a first email for your approval.</li>
+  </ol>
+  {{ shot("find-leads", "Find leads: results with opportunity flags") }}
+  {{ shot("new-scan", "New rank scan: grid preview and request count") }}
+  {{ shot("heatmap", "Heat map with stats and the competitor list") }}
+  {{ shot("heatmap-flip", "Flip the map: the same grid for a competitor") }}
+  {{ shot("share-report", "The share link a prospect sees") }}
+  {{ shot("rank-tracker", "Rank tracker: scans and schedules (Run now, Pause, Resume)") }}
+  {{ shot("ai-visibility", "AI visibility: run a check across the engines you have") }}
+  {{ shot("citation-audit", "Citation audit: is the business listed with the same name, address and phone?") }}
+</section>
+
+<section class="card" id="crm">
+  <h2>5. CRM and outreach</h2>
+  <ol>
+    <li><b>Contacts:</b> everyone you saved, imported (CSV: business_name, first_name, email, phone, website, address, tags) or who
+      filled a form. Search and filter by status and source.</li>
+    <li><b>Contact page:</b> timeline, notes and calls (<b>Log</b>), tasks, deals, scans, audits, messages. <b>Add to outbox</b> writes a
+      message; <b>Start</b> runs an automation for this contact; <b>Convert to client</b> when they sign.</li>
+    <li><b>Pipeline:</b> drag deals between stages; won and lost are tracked. <b>Tasks:</b> follow-ups with a 14-day calendar.</li>
+    <li><b>Outbox:</b> nothing reaches a cold contact until you approve it here. Edit, <b>Approve</b>, <b>Cancel</b>, or
+      <b>Copy text</b> / <b>Mark sent</b> for SMS or email you send yourself. Without SMTP, approved emails wait here.</li>
+    <li><b>Automations:</b> a trigger (new form submission, new contact, new deal, deal moved to a stage, contact field updated, or started
+      manually), optional filters, then steps: send email or SMS, wait, create task, update field, add tag, move deal, continue only if&hellip;,
+      stop if the review link was clicked, send questionnaire, send review request. Runs show on the contact; <b>Stop</b> ends one.</li>
+    <li><b>Forms &amp; spam:</b> a hosted lead form for a client's site, with spam rules (a hidden honeypot field, plus blocked keywords, emails, domains, IPs,
+      countries, links in the message and bad phone formats); <b>Not spam</b> rescues a false alarm.
+      <b>Questionnaires:</b> onboarding questions; use the per-client link so answers go into that client's vault.</li>
+  </ol>
+  {{ shot("contacts", "Contacts") }}
+  {{ shot("contact", "A contact: timeline, deals, tasks and actions") }}
+  {{ shot("pipeline", "Pipeline") }}
+  {{ shot("tasks", "Tasks and the 14-day calendar") }}
+  {{ shot("outbox", "Outbox: drafts waiting for your approval") }}
+  {{ shot("automations", "Automation builder") }}
+  {{ shot("forms", "Forms & spam rules") }}
+  {{ shot("questionnaires", "Questionnaires and per-client links") }}
+</section>
+
+<section class="card" id="clients">
+  <h2>6. Running a client's local SEO</h2>
+  <ol>
+    <li><b>Convert to client</b> (on the contact) creates the client and its <b>Local SEO Brain vault</b>.</li>
+    <li><b>Overview → Add evidence:</b> upload what you have (Business Profile export, reviews, citations, Search Console, a research
+      pack) → <b>Upload to vault</b>. Then <b>Update plan</b> writes the <b>Health Scorecard</b> and <b>Action Roadmap</b>. They stay
+      marked <i>Draft</i> and every line cites its evidence; missing evidence is marked, not guessed.</li>
+    <li><b>Posts:</b> pick a topic → <b>Draft</b> (AI) → edit → <b>Approve</b>, then <b>Publish now</b>, <b>Schedule</b>, or
+      <b>Mark posted</b> if you post it yourself.</li>
+    <li><b>Reviews:</b> <b>Sync from Google</b>, <b>Draft with AI</b> or <b>Draft replies for unanswered (AI)</b>, then
+      <b>Approve &amp; post reply</b>. <b>Create request</b> sends a customer the same Google review link everyone gets (no gating).</li>
+    <li><b>Photos:</b> upload; files get descriptive names, optional GPS stamp (metadata only, no ranking claim);
+      <b>Publish</b> or <b>Drip selected</b> to spread them out.</li>
+    <li><b>Profile lock:</b> <b>Lock the current listing</b>; the app checks it every 6 hours and shows any change for you to
+      <b>Accept change</b> or <b>Revert via Google</b>.</li>
+    <li><b>Insights:</b> Business Profile views, calls and directions plus Search Console (needs Google sign-in).
+      <b>Optimize:</b> AI drafts for description, categories and services. <b>Citations:</b> the client's NAP profile,
+      <b>Run citation audit</b>, <b>Export CSV</b>, <b>Send to brain</b>.</li>
+  </ol>
+  {{ shot("clients", "Clients") }}
+  {{ shot("client-plan", "Client overview: scorecard, roadmap and evidence") }}
+  {{ shot("client-posts", "Posts") }}
+  {{ shot("client-reviews", "Reviews and review requests") }}
+  {{ shot("client-photos", "Photos") }}
+  {{ shot("client-lock", "Profile lock") }}
+  {{ shot("client-insights", "Insights") }}
+  {{ shot("client-optimize", "Optimize") }}
+  {{ shot("client-citations", "Client citations") }}
+</section>
+
+<section class="card" id="reports">
+  <h2>7. Reports</h2>
+  <ol>
+    <li>Client → <b>Reports</b>: name, sections (rankings, reviews, posts, AI visibility, &hellip;), recipients, schedule → <b>Create</b>.</li>
+    <li><b>Build now</b> makes one. If it needs approval, check it and press <b>Approve &amp; send</b>; otherwise it's emailed on schedule
+      (with SMTP) as a link. <b>Download HTML</b> or <b>Open / print</b> for a PDF.</li>
+    <li>Branding (name, colour, logo, reply-to, postal address) is under <b>Settings → Branding</b>.</li>
+  </ol>
+  {{ shot("client-reports", "Client reports") }}
+  {{ shot("report-run", "A built report waiting for approval") }}
+</section>
+
+<section class="card" id="ask">
+  <h2>8. Ask, Journal and lessons</h2>
+  <ul>
+    <li><b>Ask:</b> plain-English questions about your data (&ldquo;Which competitor owns the north side in my latest roofer scan?&rdquo;).
+      The AI reads your data through read-only tools and cites what it used.</li>
+    <li><b>Journal:</b> every job, AI call (and which platform answered), failure, and what you did with each AI draft (used as-is, edited,
+      rejected). <b>Propose lessons</b> turns your edits into short writing lessons; <b>Approve</b> the good ones and every future draft
+      follows them.</li>
+    <li><b>Claude Code / VS Code:</b> this repo's MCP server lets Claude Code query your data and start scans.</li>
+  </ul>
+  {{ shot("ask", "Ask") }}
+  {{ shot("journal", "Journal: decisions, failures, AI calls and lessons") }}
+</section>
+
+<section class="card" id="pages">
+  <h2>9. Every page</h2>
+  <div class="table-wrap"><table>
+    <tr><th>Page</th><th>What it's for</th></tr>
+    <tr><td><a href="/">Dashboard</a></td><td>Counts of leads, clients, scans, tasks due and messages waiting; recent scans and open tasks.</td></tr>
+    <tr><td><a href="/leads/search">Find leads</a></td><td>Search businesses by niche and area with opportunity flags.</td></tr>
+    <tr><td><a href="/rank">Rank tracker</a></td><td>Heat-map scans, schedules, competitor flip, share links.</td></tr>
+    <tr><td><a href="/aivis">AI visibility</a></td><td>How AI assistants answer about a business, with the formula behind the grade.</td></tr>
+    <tr><td><a href="/citations">Citation audit</a></td><td>Directory listings checked for the same name, address and phone.</td></tr>
+    <tr><td><a href="/tools">Content tools</a></td><td>Local SEO Brain prompts drafted from facts you enter.</td></tr>
+    <tr><td><a href="/crm/contacts">Contacts</a></td><td>Everyone you work with; import, filter, spam.</td></tr>
+    <tr><td><a href="/crm/pipeline">Pipeline</a></td><td>Deals by stage.</td></tr>
+    <tr><td><a href="/crm/tasks">Tasks</a></td><td>Follow-ups and calendar.</td></tr>
+    <tr><td><a href="/crm/outbox">Outbox</a></td><td>Every outgoing message, waiting for your approval.</td></tr>
+    <tr><td><a href="/crm/automations">Automations</a></td><td>Triggers, filters, waits and actions.</td></tr>
+    <tr><td><a href="/crm/forms">Forms &amp; spam</a></td><td>Hosted lead forms and spam rules.</td></tr>
+    <tr><td><a href="/crm/questionnaires">Questionnaires</a></td><td>Client onboarding questions into the vault.</td></tr>
+    <tr><td><a href="/clients">Clients</a></td><td>Each client's plan, posts, reviews, photos, lock, insights, optimize, citations, reports.</td></tr>
+    <tr><td><a href="/reports">Reports</a></td><td>All report runs across clients.</td></tr>
+    <tr><td><a href="/ask">Ask (AI)</a></td><td>Questions about your data.</td></tr>
+    <tr><td><a href="/journal">Journal</a></td><td>History, failures and lessons.</td></tr>
+    <tr><td><a href="/guide">Guide</a></td><td>This page.</td></tr>
+    <tr><td><a href="/settings">Settings</a></td><td>Integrations, AI platforms, Google account, branding.</td></tr>
+  </table></div>
+  {{ shot("heatmap-dark", "Dark theme") }}
+</section>
+
+<section class="card" id="rules">
+  <h2>10. Rules the app follows</h2>
+  <ul>
+    <li>Nothing goes to a cold contact without your approval; every email has an opt-out line and your postal address; do-not-contact is respected.</li>
+    <li>Review requests send every customer to the same Google review link. There is no review gating.</li>
+    <li>No invented scores: every grade shows its formula, audits list exactly which checks ran, plans are marked Draft and cite evidence.</li>
+    <li>No ranking guarantees or keyword-stuffed names; GPS stamps are metadata only.</li>
+    <li>AI output is always a draft for you to approve.</li>
+  </ul>
+</section>
+
+<section class="card" id="help">
+  <h2>11. Troubleshooting</h2>
+  <div class="table-wrap"><table>
+    <tr><th>Problem</th><th>What to do</th></tr>
+    <tr><td>Something failed</td><td>The notice bar links to the <a href="/journal?kind=failure">Journal failures</a>. In the Windows app,
+      <b>File → Open server log</b> shows the server's own log.</td></tr>
+    <tr><td>&ldquo;usage limit reached&rdquo;</td><td>The next AI platform answers automatically. Add another platform on Settings, or
+      <b>Try again now</b> after the reset time.</td></tr>
+    <tr><td>An AI platform says &ldquo;not signed in&rdquo;</td><td>Settings → AI platforms → <b>Sign in</b>, finish in the terminal and browser,
+      then <b>Try again now</b>.</td></tr>
+    <tr><td>A key doesn't seem to work</td><td>Check it has no spaces or quotes in <code>.env</code>, restart the server, and look at Settings.</td></tr>
+    <tr><td>Google sign-in fails</td><td>The redirect URI must be exactly <code>http://127.0.0.1:8000/gbp/oauth/callback</code>. If another
+      program uses port 8000, the app uses a different port and Google sign-in won't match: close that program and restart.</td></tr>
+    <tr><td>Links don't open for clients</td><td>They need <a href="#sharing">a tunnel and PUBLIC_BASE_URL</a>.</td></tr>
+    <tr><td>Schedules didn't run</td><td>They run only while the app runs. Keep it in the tray, or turn on <b>Start when I sign in to Windows</b>.</td></tr>
+    <tr><td>SmartScreen / antivirus warning on install</td><td>The installer isn't code-signed. <b>More info → Run anyway</b>.</td></tr>
+  </table></div>
+</section>
+
+</div>
+</div>
+{% endblock %}

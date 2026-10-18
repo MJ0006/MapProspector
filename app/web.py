@@ -63,6 +63,7 @@ NAV = [
     ]),
     ("System", [
         ("/journal", "Journal"),
+        ("/guide", "Guide"),
         ("/settings", "Settings"),
     ]),
 ]

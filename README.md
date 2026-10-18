@@ -12,6 +12,8 @@ It covers the feature set of LeadSnap (found by inspecting leadsnap.com's public
 | **AI** | Drafts are written with **your own subscriptions**: Claude (Claude Code), ChatGPT (Codex CLI), Gemini (Gemini CLI), or **local models** (Ollama), in an order you choose. When one hits its limit the next takes over · *Ask* page · MCP server so Claude Code can query your data and start scans |
 | **Journal** | Every job, AI call (with the platform that answered), decision on AI drafts (used as-is / edited / rejected) and failure is recorded. The AI turns your edits into **lessons** you approve, and approved lessons are added to future drafts on every platform, so drafts improve as you use the app. |
 
+**New to the app?** Open **Guide** in the app's menu (`/guide`). It explains every feature with screenshots, and has click-by-click steps for each API key and AI platform.
+
 ## Run it in VS Code
 
 Requirements: Python 3.11+, git, and at least one AI platform for the AI features (see [AI platforms](#ai-platforms)).
@@ -50,6 +52,8 @@ If you cloned without `--recurse-submodules`, run `git submodule update --init` 
 To try the desktop shell from a checkout: `cd desktop && npm install && npm start`. It uses your own Python; set `MAPPROSPECTOR_PYTHON` to your venv's `python.exe`. The shell is based on electron-starter-template, which is licensed for a single product (see `desktop/TEMPLATE-LICENSE`). Keep this repo private.
 
 ## Keys (all optional)
+
+Step-by-step setup for each key is in the in-app **Guide** (`/guide`, section 3).
 
 Every module switches itself off when its key is missing. **Settings** shows what is on.
 
@@ -103,6 +107,10 @@ This repo has a `.mcp.json`, so Claude Code opened in this folder can use the `m
 - `get_journal`, `get_lessons`: failure history and your edits to AI drafts, so agents can see what breaks before changing a workflow (see `CLAUDE.md`)
 
 Try asking: *"Which competitor owns the north side for roof repair in my latest scan?"*
+
+## Guide screenshots
+
+`scripts/guide_screenshots.py` runs the app on demo data and refreshes the images in `app/static/guide/`. Re-run it after UI changes; it needs Playwright with Chromium, which is a dev-only tool.
 
 ## Tests
 
