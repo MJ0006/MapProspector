@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div><h1>{{ run.name }}</h1><p>Built {{ (run.created_at or "")[:16].replace("T", " ") }} UTC · <span class="badge {{ 'warn' if run.status == 'pending_approval' else 'good' }}">{{ run.status.replace("_", " ") }}</span></p></div>
+  <div class="actions">
+    {% if run.status == "pending_approval" %}<form method="post" action="/reports/runs/{{ run.id }}/approve"><button class="primary">Approve{{ " & send to " ~ run.recipients if run.recipients }}</button></form>{% endif %}
+    <a class="btn" href="/reports/runs/{{ run.id }}/html?download=1">Download HTML</a>
+    <a class="btn" href="/reports/runs/{{ run.id }}/html" target="_blank">Open / print</a>
+    {% if run.status in ["approved", "sent"] %}<a class="btn" href="/share/report/{{ run.token }}" target="_blank">Client link</a>{% endif %}
+    <a class="btn" href="/clients/{{ run.company_id }}/reports">Back</a>
+  </div>
+</div>
+<iframe src="/reports/runs/{{ run.id }}/html" style="width:100%;height:75vh;border:1px solid var(--border);border-radius:10px;background:#fff" title="Report preview"></iframe>
+{% endblock %}

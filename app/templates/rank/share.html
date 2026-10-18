@@ -1,0 +1,17 @@
+{% extends "share_base.html" %}
+{% block head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/static/heatmap.js"></script>
+{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Local ranking report: "{{ scan.keyword }}"</h1>
+    <p>{{ place.name if place else "" }} · {{ surfaces[scan.surface] }} · {{ scan.grid_size }}×{{ scan.grid_size }} grid · {{ (scan.completed_at or scan.created_at or "")[:10] }}</p></div>
+  <button class="no-print" type="button" onclick="window.print()">Print / PDF</button>
+</div>
+{% if scan.provider == "demo" %}<div class="notice warn">Demo data: fictional businesses.</div>{% endif %}
+<p class="hint">Each pin is a Google search run from that spot. Rankings move during the day, so one scan is a snapshot.</p>
+{% include "rank/_report.html" %}
+{% endblock %}
+{% block scripts %}<script>renderHeatmap("/share/scan/{{ token }}/data");</script>{% endblock %}

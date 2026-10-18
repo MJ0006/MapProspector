@@ -1,0 +1,13 @@
+{
+  "places": [
+    {"id": "ChIJ_target_1", "displayName": {"text": "Ridgeline Roofing", "languageCode": "en"},
+     "formattedAddress": "100 Main St, Denver, CO 80202, USA", "location": {"latitude": 39.7392, "longitude": -104.9903},
+     "rating": 4.6, "userRatingCount": 87, "primaryTypeDisplayName": {"text": "Roofing contractor"},
+     "types": ["roofing_contractor", "point_of_interest", "establishment"], "websiteUri": "https://ridgeline.example",
+     "nationalPhoneNumber": "(303) 555-0100", "googleMapsUri": "https://maps.google.com/?cid=1", "businessStatus": "OPERATIONAL",
+     "photos": [{"name": "p1"}, {"name": "p2"}], "regularOpeningHours": {"weekdayDescriptions": ["Monday: 8AM-5PM"]}},
+    {"id": "ChIJ_comp_2", "displayName": {"text": "Summit Roofing Group"}, "formattedAddress": "200 Elm St, Denver, CO",
+     "location": {"latitude": 39.75, "longitude": -104.99}, "rating": 4.9, "userRatingCount": 310,
+     "primaryTypeDisplayName": {"text": "Roofing contractor"}, "types": ["roofing_contractor"]}
+  ]
+}

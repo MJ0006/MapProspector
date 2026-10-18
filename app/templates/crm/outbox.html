@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Outbox</h1><p>Nothing reaches a cold contact until you approve it here. Approved emails go out via SMTP; SMS you copy and send yourself.</p></div>
+</div>
+{% if not brand.address %}<div class="notice warn">Add your postal address in <a href="/settings">Settings → Branding</a>: cold emails can't be approved without it (CAN-SPAM).</div>{% endif %}
+{% if not modules.smtp %}<div class="notice warn">SMTP is not configured: approved emails wait here. Copy them into your email app, then click "Mark sent".</div>{% endif %}
+<div class="actions" style="margin-bottom:12px">
+  {% for s in ["draft", "approved", "sent", "failed", "cancelled"] %}
+  <a class="btn {{ 'btn-primary' if s == status else '' }}" href="/crm/outbox?status={{ s }}">{{ s }} ({{ counts.get(s, 0) }})</a>
+  {% endfor %}
+</div>
+{% for m in rows %}
+<form class="card" method="post" action="/crm/outbox/{{ m.id }}/approve">
+  <div class="actions" style="justify-content:space-between">
+    <div><span class="badge">{{ m.channel }}</span> to <b>{{ m.to_addr }}</b>
+      {% if m.contact_id %}(<a href="/crm/contacts/{{ m.contact_id }}">{{ m.business_name or m.first_name }}</a>){% endif %}
+      <span class="hint">· {{ m.origin }} · {{ (m.created_at or "")[:16].replace("T", " ") }}</span></div>
+    {% if m.error %}<span class="badge bad">{{ m.error }}</span>{% endif %}
+  </div>
+  <div class="row" style="margin-top:8px">
+    <div class="field"><input type="text" name="to_addr" value="{{ m.to_addr or '' }}" placeholder="{{ 'Email address' if m.channel == 'email' else 'Phone number' }}" {% if status not in ['draft','approved'] %}readonly{% endif %}></div>
+    {% if m.channel == "email" %}<div class="field" style="flex:3"><input type="text" name="subject" value="{{ m.subject or '' }}" placeholder="Subject" {% if status not in ['draft','approved'] %}readonly{% endif %}></div>{% endif %}
+  </div>
+  <div class="field"><textarea name="body" id="body-{{ m.id }}" style="min-height:140px" {% if status not in ['draft','approved'] %}readonly{% endif %}>{{ m.body }}</textarea></div>
+  <div class="actions">
+    {% if status == "draft" %}<button class="primary" type="submit">Approve{{ " & send" if m.channel == "email" and modules.smtp else "" }}</button>{% endif %}
+    {% if status in ["draft", "approved", "failed"] %}
+      <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('body-{{ m.id }}').value)">Copy text</button>
+      <button type="submit" formaction="/crm/outbox/{{ m.id }}/mark_sent">Mark sent</button>
+      <button type="submit" formaction="/crm/outbox/{{ m.id }}/cancel" class="btn-danger">Cancel</button>
+    {% endif %}
+  </div>
+</form>
+{% else %}<div class="card empty">No {{ status }} messages.</div>{% endfor %}
+{% endblock %}

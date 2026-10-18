@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block content %}
+{% include "clients/_tabs.html" %}
+{% if public_is_local %}<div class="notice warn">Review requests are links to this app. <code>PUBLIC_BASE_URL</code> is set to this computer, so other people (and Google) can't open these links. Set it to a public address (e.g. a tunnel) in <code>.env</code> and set <code>APP_PASSWORD</code>.</div>{% endif %}
+<div class="grid grid-4">
+  <div class="card stat"><b>{{ stats.avg or "—" }}</b><span>Average rating ({{ stats.count }} reviews)</span></div>
+  <div class="card stat"><b>{{ stats.unreplied }}</b><span>Waiting for a reply</span></div>
+  <div class="card stat"><b>{{ stats.requests }}</b><span>Review requests sent</span></div>
+  <div class="card stat"><b>{{ ((100 * stats.clicked / stats.requests) | round | int) if stats.requests else 0 }}%</b><span>Clicked through to Google</span></div>
+</div>
+<div class="grid grid-2-1">
+  <div>
+    <div class="actions" style="margin-bottom:12px">
+      <a class="btn {{ 'btn-primary' if show == 'todo' else '' }}" href="?show=todo">To answer</a>
+      <a class="btn {{ 'btn-primary' if show == 'all' else '' }}" href="?show=all">All</a>
+      {% if connected and co.gbp_location %}<form method="post" action="/clients/{{ co.id }}/reviews/sync"><button>Sync from Google</button></form>{% endif %}
+      {% if modules.claude %}<form method="post" action="/clients/{{ co.id }}/reviews/draft-all"><button>Draft replies for unanswered (Claude)</button></form>{% endif %}
+    </div>
+    {% if rows | selectattr("reply_status", "equalto", "drafting") | list %}
+    <div class="notice">Claude is drafting replies… this page refreshes.</div><script>setTimeout(() => location.reload(), 5000);</script>
+    {% endif %}
+    {% for r in rows %}
+    <form class="card" method="post" action="/gbp/reviews/{{ r.id }}/approve">
+      <div class="actions" style="justify-content:space-between"><b>{{ "★" * (r.rating or 0) }}{{ "☆" * (5 - (r.rating or 0)) }}</b>
+        <span class="hint">{{ r.review_date or "" }} · <span class="badge">{{ r.reply_status }}</span></span></div>
+      <p style="margin-top:6px">{{ r.text or "(no text)" }}</p>
+      {% if r.reply_status == "published" %}<p class="hint"><b>Reply:</b> {{ r.reply_text }}</p>
+      {% else %}
+      <div class="field"><textarea name="text" id="reply-{{ r.id }}" placeholder="Write a reply or draft one with Claude">{{ r.reply_draft or r.reply_text or "" }}</textarea></div>
+      <div class="actions">
+        {% if modules.claude %}<button type="submit" formaction="/gbp/reviews/{{ r.id }}/draft">Draft with Claude</button>{% endif %}
+        {% if connected and co.gbp_location %}<button class="primary" type="submit">Approve &amp; post reply</button>
+        {% else %}<button type="button" onclick="navigator.clipboard.writeText(document.getElementById('reply-{{ r.id }}').value)">Copy</button>
+          <button type="submit" formaction="/gbp/reviews/{{ r.id }}/mark_replied">Mark replied</button>{% endif %}
+      </div>
+      {% endif %}
+    </form>
+    {% else %}<div class="card empty">No reviews here. Import a reviews export on the Overview tab{{ " or sync from Google" if connected }}.</div>{% endfor %}
+  </div>
+  <div>
+    <form class="card" method="post" action="/clients/{{ co.id }}/review-requests" id="requests">
+      <h2>Ask for reviews</h2>
+      <p class="hint">Every customer gets the same Google review link. No filtering by happiness: review gating is against Google's rules.</p>
+      {% if not co.review_link %}<div class="notice warn">Add the Google review link in client settings first.</div>{% endif %}
+      <div class="field"><label>Customer</label><select name="contact_id"><option value="">Just create a link</option>
+        {% for c in contacts %}<option value="{{ c.id }}">{{ c.first_name or "" }} {{ c.last_name or "" }} {{ c.business_name or "" }} ({{ c.email or c.phone or "no contact info" }})</option>{% endfor %}</select></div>
+      <div class="field"><label>Message (optional)</label><textarea name="message" placeholder="Hi {{ '{{first_name}}' }}, thanks for choosing {{ co.name }}! Would you share a quick review? {{ '{{review_link}}' }}"></textarea></div>
+      <button class="primary" type="submit" {% if not co.review_link %}disabled{% endif %}>Create request</button>
+      <p class="hint" style="margin-top:6px">Messages go to the outbox for approval.</p>
+      {% if requests %}<h3 style="margin-top:12px">Recent</h3>
+      {% for q in requests %}<div class="hint"><a href="{{ base }}/r/{{ q.token }}" target="_blank">/r/{{ q.token }}</a> · {{ q.first_name or q.business_name or "link" }} · {{ q.status }}</div>{% endfor %}{% endif %}
+    </form>
+    {% if feedback %}
+    <div class="card"><h2>Private feedback</h2>
+      {% for f in feedback %}<p>{{ f.message }} <span class="hint">{{ (f.created_at or "")[:10] }}</span></p>{% endfor %}</div>
+    {% endif %}
+    <div class="card"><h2>Rating spread</h2>
+      {% for s, n in stats.dist.items() %}<div class="actions"><span style="width:28px">{{ s }}★</span><div class="bar" style="flex:1"><i style="width:{{ (100 * n / stats.count) if stats.count else 0 }}%"></i></div><span class="hint">{{ n }}</span></div>{% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

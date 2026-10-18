@@ -1,0 +1,70 @@
+{# Shared by the private scan page and the public share page. Expects scan, stats, place, competitors, history, kw. #}
+<div class="grid grid-4">
+  <div class="card stat"><b>{{ stats.avg_rank_all if stats.avg_rank_all is not none else "—" }}</b>
+    <span>Avg rank, all points (not found = {{ not_found }})</span></div>
+  <div class="card stat"><b>{{ stats.avg_rank if stats.avg_rank is not none else "—" }}</b>
+    <span>Avg rank where found ({{ stats.found_points or 0 }}/{{ stats.points or 0 }} points)</span></div>
+  <div class="card stat"><b>{{ stats.top3_pct if stats.top3_pct is not none else "—" }}%</b><span>Points ranked 1–3</span></div>
+  <div class="card stat"><b>{% if change is not none %}{{ "+" if change > 0 else "" }}{{ change }}{% else %}—{% endif %}</b>
+    <span>Change vs previous scan (positive = better)</span></div>
+</div>
+<div class="grid grid-2-1">
+  <div class="card">
+    <div class="actions" style="justify-content:space-between;margin-bottom:8px">
+      <h2 style="margin:0">Showing: <span id="who">{{ place.name if place else "—" }}</span></h2>
+      <div class="legend"><span><i class="r1"></i>1–3</span><span><i class="r2"></i>4–6</span><span><i class="r3"></i>7–10</span><span><i class="r4"></i>11–20</span><span><i class="rn"></i>not in top 20</span></div>
+    </div>
+    <div id="map" class="map"></div>
+  </div>
+  <div class="card">
+    <h2>Flip the map</h2>
+    <p class="hint">Click a business to see its rank at every point.</p>
+    <div class="competitor-list" id="complist"></div>
+  </div>
+</div>
+{% if competitors %}
+<div class="card">
+  <h2>Competitors in this scan ({{ competitors | length }})</h2>
+  <div class="table-wrap"><table>
+    <tr><th>#</th><th>Business</th><th>Category</th><th class="num">Avg (all)</th><th class="num">Avg (found)</th><th class="num">Top 3</th>
+      <th class="num">Share of top 3</th><th class="num">Points</th><th class="num">NW</th><th class="num">NE</th><th class="num">SW</th><th class="num">SE</th>
+      <th class="num">Rating</th><th class="num">Reviews</th><th class="num">Photos</th><th>Links</th></tr>
+    {% for c in competitors[:50] %}{% set b = c.business %}
+    <tr {% if c.you %}style="background:var(--info-bg)"{% endif %}>
+      <td>{{ c.position }}</td><td style="min-width:170px">{{ b.name }}{% if c.you %} <span class="badge info">you</span>{% endif %}</td>
+      <td class="hint">{{ b.primary_category or "" }}</td>
+      <td class="num">{{ c.avg_rank_all }}</td><td class="num">{{ c.avg_rank if c.avg_rank is not none else "—" }}</td>
+      <td class="num">{{ c.top3_pct }}%</td><td class="num">{{ c.share_top3 }}%</td><td class="num">{{ c.found_points }}</td>
+      {% for q in ["nw","ne","sw","se"] %}<td class="num">{{ c.quadrants[q] if c.quadrants[q] is not none else "—" }}</td>{% endfor %}
+      <td class="num">{{ b.rating or "—" }}</td><td class="num">{{ b.review_count if b.review_count is not none else "—" }}</td>
+      <td class="num">{{ b.photos_count if b.photos_count is not none else "—" }}</td>
+      <td>{% if b.website %}<a href="{{ b.website }}" target="_blank" rel="noopener">site</a>{% endif %}
+          {% if b.maps_url %}<a href="{{ b.maps_url }}" target="_blank" rel="noopener">map</a>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  <p class="hint">Share of top 3 = top-3 appearances ÷ (3 × points). Quadrants are average rank (all points) in each corner of the grid. This table shows data only; it does not claim why anyone ranks.</p>
+</div>
+{% endif %}
+<div class="grid grid-2">
+  {% if history and history | length > 1 %}
+  <div class="card">
+    <h2>Trend for "{{ scan.keyword }}"</h2>
+    <table><tr><th>Date</th><th class="num">Avg (all)</th><th class="num">Top 3</th></tr>
+      {% for h in history | reverse %}<tr><td>{{ h.date }}</td><td class="num">{{ h.avg_rank_all }}</td><td class="num">{{ h.top3_pct }}%</td></tr>{% endfor %}
+    </table>
+  </div>
+  {% endif %}
+  {% if kw %}
+  <div class="card">
+    <h2>Keyword data</h2>
+    <table>
+      <tr><td>Monthly searches</td><td class="num">{{ kw.search_volume or "—" }}</td></tr>
+      <tr><td>CPC</td><td class="num">{{ ("$%.2f" | format(kw.cpc)) if kw.cpc else "—" }}</td></tr>
+      <tr><td>Difficulty</td><td class="num">{{ kw.difficulty if kw.difficulty is not none else "—" }}</td></tr>
+      <tr><td>Intent</td><td class="num">{{ kw.intent or "—" }}</td></tr>
+    </table>
+    <p class="hint">From DataForSEO, {{ (kw.fetched_at or "")[:10] }}.</p>
+  </div>
+  {% endif %}
+</div>

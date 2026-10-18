@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head"><div><h1>Reports</h1><p>Reports across all clients. Set them up on each client's Reports tab.</p></div></div>
+<div class="grid grid-2">
+  <div class="card"><h2>Waiting and recent</h2>
+    {% for x in runs %}<p><a href="/reports/runs/{{ x.id }}">{{ x.company }}: {{ x.name }}</a> · <span class="badge {{ 'warn' if x.status == 'pending_approval' else 'good' }}">{{ x.status.replace("_", " ") }}</span> <span class="hint">{{ (x.created_at or "")[:10] }}</span></p>
+    {% else %}<div class="empty">No reports built yet.</div>{% endfor %}</div>
+  <div class="card"><h2>Report setups</h2>
+    {% for r in reps %}<p><a href="/clients/{{ r.company_id }}/reports">{{ r.company }}</a> · {{ r.name }} · {{ r.schedule }}</p>
+    {% else %}<div class="empty">None. Open a client → Reports.</div>{% endfor %}</div>
+</div>
+{% endblock %}

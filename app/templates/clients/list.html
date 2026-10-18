@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Clients</h1><p>Each client has a Local SEO Brain vault: evidence in, a Draft scorecard and roadmap out.</p></div>
+</div>
+<div class="card">
+  {% if rows %}
+  <table>
+    <tr><th>Client</th><th class="num">Rating</th><th class="num">Reviews</th><th class="num">Reviews to answer</th><th class="num">Profile changes</th><th>Google</th></tr>
+    {% for c in rows %}
+    <tr><td><a href="/clients/{{ c.id }}">{{ c.name }}</a><div class="hint">{{ c.website or "" }}</div></td>
+      <td class="num">{{ c.rating or "—" }}</td><td class="num">{{ c.review_count if c.review_count is not none else "—" }}</td>
+      <td class="num">{% if c.unreplied %}<a href="/clients/{{ c.id }}/reviews">{{ c.unreplied }}</a>{% else %}0{% endif %}</td>
+      <td class="num">{% if c.changes %}<a class="badge bad" href="/clients/{{ c.id }}/lock">{{ c.changes }}</a>{% else %}0{% endif %}</td>
+      <td>{% if c.gbp_location %}<span class="badge good">linked</span>{% else %}<span class="badge">draft mode</span>{% endif %}</td></tr>
+    {% endfor %}
+  </table>
+  {% else %}<div class="empty">No clients yet. Open a contact and click "Convert to client", or add one here.</div>{% endif %}
+</div>
+<form class="card" method="post" action="/clients">
+  <h2>Add a client directly</h2>
+  <div class="row">
+    <div class="field"><label>Business name</label><input type="text" name="name" required></div>
+    <div class="field"><label>Website</label><input type="url" name="website"></div>
+    <div class="field"><label>Phone</label><input type="tel" name="phone"></div>
+  </div>
+  <button class="primary" type="submit">Add client</button>
+</form>
+{% endblock %}

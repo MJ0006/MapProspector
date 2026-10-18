@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block content %}
+{% if public_is_local %}<div class="notice warn">Embedded website forms post to this app. <code>PUBLIC_BASE_URL</code> is set to this computer, so other people (and Google) can't open these links. Set it to a public address (e.g. a tunnel) in <code>.env</code> and set <code>APP_PASSWORD</code>.</div>{% endif %}
+<div class="page-head">
+  <div><h1>Forms &amp; spam</h1><p>Capture website leads into the CRM. Spam rules run on every submission; blocked ones are kept so you can rescue them.</p></div>
+</div>
+<div class="grid grid-2">
+  <div class="card">
+    <h2>Forms</h2>
+    {% for f in forms %}
+    <div style="margin-bottom:14px">
+      <div class="actions" style="justify-content:space-between"><b>{{ f.name }}</b><span class="hint">{{ f.good }} leads · {{ f.spam }} spam</span></div>
+      <p class="hint">Hosted page: <a href="/f/{{ f.token }}" target="_blank">{{ base }}/f/{{ f.token }}</a></p>
+      <details><summary>Embed on your website</summary>
+<pre>&lt;form method="post" action="{{ base }}/f/{{ f.token }}"&gt;
+{% for fld in f.fields | loads([]) %}  &lt;input name="{{ fld.name }}" placeholder="{{ fld.label }}"{% if fld.required %} required{% endif %}&gt;
+{% endfor %}  &lt;input name="_hp" style="display:none" tabindex="-1" autocomplete="off"&gt;
+  &lt;button&gt;Send&lt;/button&gt;
+&lt;/form&gt;</pre>
+        <p class="hint">Your website must be able to reach this app (e.g. a tunnel or hosting) for live submissions.</p>
+      </details>
+      <form method="post" action="/crm/forms/{{ f.id }}/delete" onsubmit="return confirm('Delete form?')"><button class="btn-sm btn-danger">Delete</button></form>
+    </div>
+    {% else %}<div class="empty">No forms yet.</div>{% endfor %}
+    <form method="post" action="/crm/forms" style="border-top:1px solid var(--border);padding-top:12px">
+      <h3>New form</h3>
+      <div class="row">
+        <div class="field"><label>Name</label><input type="text" name="name" required></div>
+        <div class="field"><label>Client (optional)</label><select name="company_id"><option value="">—</option>{% for c in companies %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></div>
+      </div>
+      <div class="field"><label>Fields, one per line: name | Label | type | required <span class="hint">(blank = name, email, phone, message)</span></label>
+        <textarea name="fields" placeholder="name | Your name | text | required&#10;email | Email | email | required&#10;zip | Zip code | text"></textarea></div>
+      <button class="primary" type="submit">Create form</button>
+    </form>
+  </div>
+  <div class="card">
+    <h2>Spam rules</h2>
+    <table>
+      {% for r in rules %}
+      <tr><td>{{ kinds[r.kind] }}</td><td><code>{{ r.value or "" }}</code></td>
+        <td><form method="post" action="/crm/spam-rules/{{ r.id }}/delete"><button class="btn-sm">Remove</button></form></td></tr>
+      {% else %}<tr><td class="empty">No rules yet. A hidden honeypot field already stops simple bots.</td></tr>{% endfor %}
+    </table>
+    <form method="post" action="/crm/spam-rules" class="row" style="margin-top:10px">
+      <div class="field"><select name="kind">{% for k, v in kinds.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div>
+      <div class="field"><input type="text" name="value" placeholder="value (if needed)"></div>
+      <div class="field"><button type="submit">Add rule</button></div>
+    </form>
+    {% if stats %}<h3 style="margin-top:14px">Blocked by</h3>
+    <table>{% for s in stats %}<tr><td>{{ s.spam_reason }}</td><td class="num">{{ s.n }}</td></tr>{% endfor %}</table>{% endif %}
+  </div>
+</div>
+<div class="card">
+  <h2>Recent submissions</h2>
+  {% if subs %}
+  <div class="table-wrap"><table>
+    <tr><th>Date</th><th>Form</th><th>Data</th><th>Result</th><th></th></tr>
+    {% for s in subs %}
+    <tr><td class="hint">{{ (s.created_at or "")[:16].replace("T", " ") }}</td><td>{{ s.form }}</td>
+      <td class="hint">{% for k, v in (s.data | loads({})).items() %}<div><b>{{ k }}</b>: {{ v }}</div>{% endfor %}</td>
+      <td>{% if s.is_spam %}<span class="badge bad">spam: {{ s.spam_reason }}</span>{% else %}<a class="badge good" href="/crm/contacts/{{ s.contact_id }}">lead</a>{% endif %}</td>
+      <td>{% if s.is_spam %}<form method="post" action="/crm/submissions/{{ s.id }}/not-spam"><button class="btn-sm">Not spam</button></form>{% endif %}</td></tr>
+    {% endfor %}
+  </table></div>
+  {% else %}<div class="empty">No submissions yet.</div>{% endif %}
+</div>
+{% endblock %}

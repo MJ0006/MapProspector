@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+{% include "clients/_tabs.html" %}
+{% if public_is_local %}<div class="notice warn">Report emails contain a link to the report. <code>PUBLIC_BASE_URL</code> is set to this computer, so other people (and Google) can't open these links. Set it to a public address (e.g. a tunnel) in <code>.env</code> and set <code>APP_PASSWORD</code>.</div>{% endif %}
+<div class="grid grid-2">
+  <div>
+    {% for r in reps %}
+    <form class="card" method="post" action="/reports/{{ r.id }}/build">
+      <div class="actions" style="justify-content:space-between"><h2 style="margin:0">{{ r.name }}</h2>
+        <span class="badge">{{ r.schedule if r.schedule != "none" else "on demand" }}</span></div>
+      <p class="hint">Sections: {{ (r.sections | loads([])) | join(", ") }}<br>To: {{ r.recipients or "nobody (download only)" }} · {{ "needs your approval" if r.require_approval else "sends automatically" }}
+        {% if r.next_run_at %}<br>Next: {{ r.next_run_at[:16].replace("T", " ") }} UTC{% endif %}</p>
+      {% if r.last_error %}<div class="notice bad">Last scheduled build failed: {{ r.last_error }}</div>{% endif %}
+      <div class="field"><input type="text" name="note" placeholder="Optional note at the top of this report"></div>
+      <div class="actions"><button class="primary" type="submit">Build now</button>
+        <button type="submit" class="btn-danger" formaction="/reports/{{ r.id }}/delete">Delete</button></div>
+    </form>
+    {% else %}<div class="card empty">No reports set up yet.</div>{% endfor %}
+    {% if runs %}<div class="card"><h2>Built reports</h2>
+      {% for x in runs %}<p><a href="/reports/runs/{{ x.id }}">{{ x.name }}</a> · <span class="badge {{ 'warn' if x.status == 'pending_approval' else 'good' }}">{{ x.status.replace("_", " ") }}</span> <span class="hint">{{ (x.created_at or "")[:16].replace("T", " ") }}</span></p>{% endfor %}</div>{% endif %}
+  </div>
+  <form class="card" method="post" action="/clients/{{ co.id }}/reports">
+    <h2>New report</h2>
+    <div class="field"><label>Name</label><input type="text" name="name" value="Monthly local SEO report"></div>
+    <div class="field"><label>Sections</label>{% for k, v in sections.items() %}<label style="font-weight:400"><input type="checkbox" name="sections" value="{{ k }}" checked> {{ v }}</label>{% endfor %}</div>
+    <div class="row">
+      <div class="field"><label>Schedule</label><select name="schedule"><option value="none">On demand</option><option value="weekly">Weekly (Mondays)</option><option value="monthly">Monthly (1st)</option></select></div>
+      <div class="field"><label>Email to (comma separated)</label><input type="text" name="recipients"></div>
+    </div>
+    <div class="field"><label><input type="checkbox" name="auto_send" value="1"> Send without asking me first</label></div>
+    <button class="primary" type="submit">Create</button>
+    <p class="hint" style="margin-top:8px">Reports are emailed as a link to this app (it must be reachable by the client) and can be downloaded as a standalone HTML file or printed to PDF.</p>
+  </form>
+</div>
+{% endblock %}

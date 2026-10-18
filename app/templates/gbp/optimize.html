@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+{% include "clients/_tabs.html" %}
+<div class="grid grid-2">
+  <div class="card">
+    <h2>Profile completeness</h2>
+    {% if items %}
+    <table>{% for label, ok, value in items %}
+      <tr><td class="{{ 'check-pass' if ok else 'check-fail' }}"><b>{{ "✓" if ok else "✕" }}</b></td><td><b>{{ label }}</b></td><td class="hint">{{ value or "missing" }}</td></tr>
+    {% endfor %}</table>
+    {% else %}<p>Link this client to a Google place (convert from a lead found by search) to check completeness.</p>{% endif %}
+    <p class="hint" style="margin-top:8px">Use the real business name and the fewest accurate categories. Keyword-stuffed names can get a profile suspended (Local SEO Brain doctrine 001).</p>
+  </div>
+  <div class="card">
+    <h2>Draft improvements with Claude</h2>
+    {% for prompt, label in [("gbp-description-claude-prompt-1", "Business description"), ("gbp-categories-prompt", "Category review"),
+       ("gbp-services-prompt", "Services list"), ("prompt-generating-a-title-tag", "Homepage title tag"),
+       ("schema-prompt-1", "LocalBusiness schema"), ("ai-homepage-rewrite-prompt", "Homepage rewrite")] %}
+    <p><a href="/tools?prompt={{ prompt }}&company_id={{ co.id }}">{{ label }}</a></p>
+    {% endfor %}
+    <p class="hint">Q&amp;A is not part of this app's Google connection: manage it in Google directly. The PAA rewording prompt in Content tools helps draft answers.</p>
+  </div>
+</div>
+{% endblock %}

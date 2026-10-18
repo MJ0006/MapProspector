@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head"><div><h1>{{ r.name }}</h1><p>{{ (r.created_at or "")[:16].replace("T", " ") }}</p></div>
+  <a class="btn" href="/crm/questionnaires">Back</a></div>
+<div class="card">
+  <table>{% for label, answer in qa %}
+    <tr><td style="width:45%"><b>{{ label }}</b></td><td>{{ answer | join(", ") if answer is iterable and answer is not string else (answer or "—") }}</td></tr>
+  {% endfor %}</table>
+</div>
+{% endblock %}

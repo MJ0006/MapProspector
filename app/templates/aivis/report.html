@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block head %}<style>@media print { .sidebar, .no-print { display: none !important; } .layout { display: block; } }</style>{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>AI visibility: {{ r.business_name }}</h1><p>"{{ r.category }}" in {{ r.city }} · {{ (r.created_at or "")[:16].replace("T", " ") }} UTC</p></div>
+  {% if report %}<div class="actions no-print">
+    <form method="post" action="/aivis/{{ r.id }}/share"><button>Share link</button></form>
+    <button type="button" onclick="window.print()">Print / PDF</button></div>{% endif %}
+</div>
+{% if r.share_token %}<div class="notice no-print" id="share">View-only link: <a href="/share/aivis/{{ r.share_token }}">/share/aivis/{{ r.share_token }}</a></div>{% endif %}
+{% if r.status in ("queue", "in_progress") %}
+<div class="notice">Asking the engines… this takes a few minutes.</div><script>setTimeout(() => location.reload(), 5000);</script>
+{% elif r.error %}<div class="notice bad">{{ r.error }}</div>{% endif %}
+{% if report %}{% include "aivis/_report.html" %}{% endif %}
+{% endblock %}

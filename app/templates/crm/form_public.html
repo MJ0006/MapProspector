@@ -1,0 +1,19 @@
+{% extends "share_base.html" %}
+{% block content %}
+<div class="card" style="max-width:560px">
+  <h1>{{ f.name }}</h1>
+  {% if sent %}<div class="notice good" style="margin-top:12px">Thanks! We'll be in touch soon.</div>
+  {% else %}
+  <form method="post" action="/f/{{ f.token }}" style="margin-top:12px">
+    {% for fld in f.fields %}
+    <div class="field"><label>{{ fld.label }}{% if fld.required %} *{% endif %}</label>
+      {% if fld.type == "textarea" %}<textarea name="{{ fld.name }}" {% if fld.required %}required{% endif %}></textarea>
+      {% else %}<input type="{{ fld.type if fld.type in ['text','email','tel','number','url','date'] else 'text' }}" name="{{ fld.name }}" {% if fld.required %}required{% endif %}>{% endif %}
+    </div>
+    {% endfor %}
+    <input name="_hp" style="display:none" tabindex="-1" autocomplete="off">
+    <button class="primary" type="submit">Send</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

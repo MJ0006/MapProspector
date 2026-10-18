@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Find leads</h1><p>Search a niche in an area, spot the businesses that need help, save them to your CRM.</p></div>
+</div>
+{% if not modules.places %}<div class="notice warn">No <code>GOOGLE_API_KEY</code> set: results are <b>demo businesses</b> around the coordinates you enter.</div>{% endif %}
+<form class="card" method="get" action="/leads/search">
+  <div class="row">
+    <div class="field"><label>Niche</label><input type="text" name="niche" value="{{ q.niche }}" placeholder="roofer, dentist, plumber" required></div>
+    <div class="field"><label>Area</label><input type="text" name="area" value="{{ q.area }}" placeholder="Austin, TX"></div>
+    <div class="field"><label>Lat (optional)</label><input type="text" name="lat" value="{{ q.lat }}"></div>
+    <div class="field"><label>Lng (optional)</label><input type="text" name="lng" value="{{ q.lng }}"></div>
+  </div>
+  <div class="row">
+    <div class="field"><label><input type="checkbox" name="no_website" value="1" {% if q.no_website %}checked{% endif %}> Only businesses without a website</label></div>
+    <div class="field"><label>Rating at most</label><input type="number" step="0.1" name="max_rating" value="{{ q.max_rating }}"></div>
+    <div class="field"><label>Reviews at most</label><input type="number" name="max_reviews" value="{{ q.max_reviews }}"></div>
+  </div>
+  <button class="primary" type="submit">Search</button>
+</form>
+{% if error %}<div class="notice bad">{{ error }}</div>{% endif %}
+{% if results %}
+<div class="card">
+  <h2>{{ results | length }} businesses{% if median_reviews %} <span class="hint">(median reviews here: {{ median_reviews | int }})</span>{% endif %}</h2>
+  <div class="table-wrap"><table>
+    <tr><th>Business</th><th>Category</th><th class="num">Rating</th><th class="num">Reviews</th><th>Website</th><th>Phone</th><th>Opportunities</th><th></th></tr>
+    {% for b in results %}
+    <tr>
+      <td><b>{{ b.name }}</b><div class="hint">{{ b.address or "" }}</div></td>
+      <td class="hint">{{ b.primary_category or "" }}</td>
+      <td class="num">{{ b.rating or "—" }}</td><td class="num">{{ b.review_count if b.review_count is not none else "—" }}</td>
+      <td>{% if b.website %}<a href="{{ b.website }}" target="_blank" rel="noopener">visit</a>{% else %}<span class="badge bad">none</span>{% endif %}</td>
+      <td>{{ b.phone or "" }}</td>
+      <td>{% for f in b.flags %}<span class="badge warn">{{ f }}</span> {% endfor %}</td>
+      <td>
+        {% if b.saved %}<span class="badge good">saved</span>{% else %}
+        <form method="post" action="/leads/save-place" class="actions" hx-post="/leads/save-place" hx-swap="outerHTML">
+          {% for k in ["google_place_id","name","address","phone","website","primary_category","maps_url","lat","lng","rating","review_count","photos_count"] %}
+          <input type="hidden" name="{{ k }}" value="{{ b[k] if b[k] is not none else '' }}">{% endfor %}
+          <input type="hidden" name="back" value="{{ request.url.path }}?{{ request.url.query }}">
+          <button class="btn-sm" type="submit">Save lead</button>
+          <button class="btn-sm" type="submit" name="then" value="scan" hx-post="/leads/save-place?then=scan" hx-swap="none">Save + heat map</button>
+        </form>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table></div>
+</div>
+{% elif q.niche and not error %}<div class="empty">No businesses matched.</div>{% endif %}
+{% endblock %}

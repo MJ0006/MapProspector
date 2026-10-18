@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div><h1>{{ note.title }}</h1><p>Draft: review every claim before it goes anywhere public.</p></div>
+  <a class="btn" href="/tools?prompt={{ note.name }}">Back</a>
+</div>
+{% if error %}<div class="notice bad">{{ error }}</div>{% endif %}
+{% if output %}
+<div class="card">
+  <div class="actions" style="justify-content:flex-end"><button type="button" onclick="navigator.clipboard.writeText(document.getElementById('out').innerText)">Copy</button></div>
+  <pre id="out">{{ output }}</pre>
+</div>
+{% endif %}
+<details class="card"><summary>Prompt sent to Claude</summary><pre>{{ prompt_text }}</pre></details>
+{% endblock %}

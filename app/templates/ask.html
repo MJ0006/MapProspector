@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Ask</h1><p>Ask about your scans, leads, clients and reviews in plain English. Claude reads your data through the MapProspector MCP server (read-only).</p></div>
+</div>
+{% if not modules.claude %}<div class="notice warn">Needs the <code>claude</code> CLI (Claude Code) installed and logged in.</div>{% endif %}
+<form class="card" method="post" action="/ask" onsubmit="document.getElementById('thinking').hidden=false">
+  <div class="field"><textarea name="question" required placeholder="Ask anything about your data">{{ question }}</textarea></div>
+  <div class="actions"><button class="primary" type="submit" {% if not modules.claude %}disabled{% endif %}>Ask Claude</button>
+    <span id="thinking" class="hint" hidden>Thinking… (up to a couple of minutes)</span></div>
+  <p class="hint" style="margin-top:8px">Try: {% for e in examples %}<a href="#" onclick="document.querySelector('[name=question]').value=this.textContent;return false">{{ e }}</a>{{ " · " if not loop.last }}{% endfor %}</p>
+</form>
+{% if error %}<div class="notice bad">{{ error }}</div>{% endif %}
+{% if answer %}<div class="card"><pre>{{ answer }}</pre></div>{% endif %}
+<p class="hint">In VS Code, Claude Code also sees these tools (this repo has a <code>.mcp.json</code>), including starting scans and creating tasks.</p>
+{% endblock %}

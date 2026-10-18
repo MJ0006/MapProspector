@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Automations</h1><p>"When X happens, do Y." Messages always pass through the outbox; cold contacts need your approval.</p></div>
+  <a class="btn btn-primary" href="/crm/automations/0">New automation</a>
+</div>
+<div class="card">
+  {% if rows %}
+  <table>
+    <tr><th>Name</th><th>Trigger</th><th>Steps</th><th>Runs</th><th>Waiting</th><th>Status</th><th></th></tr>
+    {% for a in rows %}
+    <tr>
+      <td><a href="/crm/automations/{{ a.id }}">{{ a.name }}</a></td><td>{{ triggers[a.trigger] }}</td>
+      <td>{{ (a.actions | loads([])) | length }}</td><td>{{ a.runs }}</td><td>{{ a.waiting }}</td>
+      <td>{% if a.active %}<span class="badge good">active</span>{% else %}<span class="badge">off</span>{% endif %}</td>
+      <td class="actions">
+        <form method="post" action="/crm/automations/{{ a.id }}/duplicate"><button class="btn-sm">Duplicate</button></form>
+        <form method="post" action="/crm/automations/{{ a.id }}/delete" onsubmit="return confirm('Delete?')"><button class="btn-sm btn-danger">Delete</button></form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<div class="empty">No automations yet. Example: when a website form is submitted → wait 5 minutes → text them → create a follow-up task.</div>{% endif %}
+</div>
+{% endblock %}

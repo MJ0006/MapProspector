@@ -1,0 +1,8 @@
+{% extends "share_base.html" %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Listing &amp; website audit: {{ place.name }}</h1><p>{{ a.url or "" }} · {{ (a.created_at or "")[:10] }}</p></div>
+  <button class="no-print" type="button" onclick="window.print()">Print / PDF</button>
+</div>
+{% include "audit/_checks.html" %}
+{% endblock %}

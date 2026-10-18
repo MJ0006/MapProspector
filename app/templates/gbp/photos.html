@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+{% include "clients/_tabs.html" %}
+{% if connected %}{% if public_is_local %}<div class="notice warn">Google fetches published photos from this app. <code>PUBLIC_BASE_URL</code> is set to this computer, so other people (and Google) can't open these links. Set it to a public address (e.g. a tunnel) in <code>.env</code> and set <code>APP_PASSWORD</code>.</div>{% endif %}
+{% endif %}
+<div class="grid grid-1-2">
+  <form class="card" method="post" action="/clients/{{ co.id }}/photos" enctype="multipart/form-data">
+    <h2>Upload photos</h2>
+    <div class="field"><input type="file" name="files" accept=".jpg,.jpeg,.png,.webp" multiple required></div>
+    <div class="field"><label>What's in them (used for descriptive file names)</label><input type="text" name="caption" placeholder="new roof install, cedar shingles"></div>
+    <div class="field"><label>Category</label><select name="category">{% for c in categories %}<option>{{ c }}</option>{% endfor %}</select></div>
+    <details><summary>GPS metadata (optional)</summary>
+      <p class="hint" style="margin-top:6px">Writes GPS coordinates into JPEG EXIF. This is metadata only: Local SEO Brain rates "geotagging improves rankings" as unsupported, and Google strips most EXIF on upload.</p>
+      <label><input type="checkbox" name="stamp_gps" value="1"> Stamp GPS</label>
+      <div class="row"><div class="field"><input type="text" name="lat" value="{{ place.lat if place and place.lat else '' }}" placeholder="lat"></div>
+        <div class="field"><input type="text" name="lng" value="{{ place.lng if place and place.lng else '' }}" placeholder="lng"></div></div>
+    </details>
+    <button class="primary" type="submit" style="margin-top:10px">Upload</button>
+  </form>
+  <form class="card" method="post" action="/clients/{{ co.id }}/photos/schedule">
+    <div class="actions" style="justify-content:space-between"><h2 style="margin:0">Library</h2>
+      <span class="actions"><input type="datetime-local" name="start" style="width:auto"> every <input type="number" name="every_days" value="7" min="0" style="width:70px"> days
+        <button type="submit">Drip selected</button></span></div>
+    <div class="grid grid-3" style="margin-top:12px">
+    {% for p in rows %}
+      <div class="card" style="padding:8px;margin:0">
+        <label style="font-weight:400"><input type="checkbox" name="photo_id" value="{{ p.id }}" {% if p.status != 'library' %}disabled{% endif %}>
+          <img src="/media/photos/{{ co.id }}/{{ p.filename }}" alt="{{ p.caption or '' }}" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px"></label>
+        <div class="hint" style="word-break:break-all">{{ p.filename }}</div>
+        <div><span class="badge">{{ p.status }}</span>{% if p.scheduled_at %} <span class="hint">{{ p.scheduled_at[:10] }}</span>{% endif %}{% if p.gps_lat %} <span class="badge" title="metadata only">GPS</span>{% endif %}</div>
+        <div class="actions" style="margin-top:6px">
+          {% if p.status != "published" %}
+            {% if connected and co.gbp_location %}<button class="btn-sm" formaction="/gbp/photos/{{ p.id }}/publish">Publish</button>
+            {% else %}<a class="btn btn-sm" href="/media/photos/{{ co.id }}/{{ p.filename }}" download>Download</a>
+              <button class="btn-sm" formaction="/gbp/photos/{{ p.id }}/mark_published">Mark uploaded</button>{% endif %}
+            {% if p.status == "scheduled" %}<button class="btn-sm" formaction="/gbp/photos/{{ p.id }}/unschedule">Unschedule</button>{% endif %}
+          {% endif %}
+          <button class="btn-sm btn-danger" formaction="/gbp/photos/{{ p.id }}/delete">✕</button>
+        </div>
+      </div>
+    {% else %}<div class="empty">No photos yet.</div>{% endfor %}
+    </div>
+    {% if not connected %}<p class="hint">In draft mode, a task reminds you on each drip date to upload that photo in Google.</p>{% endif %}
+  </form>
+</div>
+{% endblock %}

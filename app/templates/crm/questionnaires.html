@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Questionnaires</h1><p>Onboard clients without asking the same thing twice. Answers from a client are added to their Local SEO Brain vault as evidence.</p></div>
+</div>
+<div class="grid grid-2">
+  <div class="card">
+    <h2>Your questionnaires</h2>
+    {% for q in rows %}
+    <p><b>{{ q.name }}</b> · {{ (q.questions | loads([])) | length }} questions · {{ q.n }} responses<br>
+      <span class="hint">Link: <a href="/q/{{ q.token }}" target="_blank">{{ base }}/q/{{ q.token }}</a> (add <code>?co=CLIENT_ID</code> to tie answers to a client)</span></p>
+    {% else %}<div class="empty">None yet.</div>{% endfor %}
+    {% if responses %}
+    <h3 style="margin-top:14px">Recent responses</h3>
+    {% for r in responses %}<p><a href="/crm/questionnaires/responses/{{ r.id }}">{{ r.name }}</a> · {{ r.company or r.business_name or r.first_name or "anonymous" }} <span class="hint">{{ (r.created_at or "")[:10] }}</span></p>{% endfor %}
+    {% endif %}
+  </div>
+  <form class="card" method="post" action="/crm/questionnaires">
+    <h2>New questionnaire</h2>
+    <div class="field"><label>Name</label><input type="text" name="name" value="Local SEO onboarding" required></div>
+    <div class="field"><label>Questions, one per line: <code>Question | type | options</code></label>
+      <textarea name="questions" style="min-height:260px">{{ starter }}</textarea>
+      <div class="hint">Types: {% for k, v in types.items() %}<code>{{ k }}</code> {{ v }}{{ "," if not loop.last }} {% endfor %}. The starter questions cover what Local SEO Brain needs to draft truthful profile content.</div></div>
+    <button class="primary" type="submit">Create</button>
+  </form>
+</div>
+{% endblock %}

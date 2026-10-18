@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Rank tracker</h1><p>Geo-grid heat maps: a search is run from every grid point and the top 20 results are recorded.</p></div>
+  <a class="btn btn-primary" href="/rank/new">New scan</a>
+</div>
+<div class="card">
+  <h2>Schedules</h2>
+  {% if schedules %}
+  <div class="table-wrap"><table>
+    <tr><th>Name</th><th>Business</th><th>Keywords</th><th>Surface</th><th>Repeats</th><th>Next run</th><th></th></tr>
+    {% for s in schedules %}
+    <tr>
+      <td>{{ s.name }}</td><td>{{ s.business or "—" }}</td><td>{{ (s.keywords | loads([])) | join(", ") }}</td>
+      <td>{{ surfaces[s.surface] }}</td><td>{{ recurrences[s.recurrence] }}</td>
+      <td>{% if s.paused %}<span class="badge warn">paused</span>{% else %}{{ (s.next_run_at or "")[:16].replace("T", " ") }} UTC{% endif %}
+        {% if s.last_error %}<div class="badge bad" title="{{ s.last_error }}">last run failed: {{ s.last_error[:80] }}</div>{% endif %}</td>
+      <td class="actions">
+        <form method="post" action="/rank/schedules/{{ s.id }}/run"><button class="btn-sm">Run now</button></form>
+        {% if s.paused %}<form method="post" action="/rank/schedules/{{ s.id }}/resume"><button class="btn-sm">Resume</button></form>
+        {% else %}<form method="post" action="/rank/schedules/{{ s.id }}/pause"><button class="btn-sm">Pause</button></form>{% endif %}
+        <form method="post" action="/rank/schedules/{{ s.id }}/delete" onsubmit="return confirm('Delete schedule?')"><button class="btn-sm btn-danger">Delete</button></form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  <p class="hint">Schedules run while MapProspector is running on your computer.</p>
+  {% else %}<div class="empty">No schedules. Pick "Repeat" when creating a scan.</div>{% endif %}
+</div>
+<div class="card">
+  <h2>Scans</h2>
+  {% if scans %}
+  <div class="table-wrap"><table>
+    <tr><th>Business</th><th>Keyword</th><th>Surface</th><th>Source</th><th>Grid</th><th>Status</th><th class="num">Avg rank (all)</th><th class="num">Top 3</th><th>Date</th></tr>
+    {% for s in scans %}{% set st = s.stats | loads({}) %}
+    <tr>
+      <td><a href="/rank/{{ s.id }}">{{ s.business or "—" }}</a></td><td>{{ s.keyword }}</td><td>{{ surfaces[s.surface] }}</td>
+      <td>{% if s.provider == "demo" %}<span class="badge warn">demo data</span>{% else %}{{ s.provider }}{% endif %}</td>
+      <td>{{ s.grid_size }}×{{ s.grid_size }} {{ s.shape }}</td>
+      <td><span class="badge {{ 'good' if s.status == 'completed' else 'bad' if s.status == 'failed' else 'warn' if s.status == 'incomplete' else 'info' }}">{{ s.status }}</span></td>
+      <td class="num">{{ st.avg_rank_all if st and st.avg_rank_all is not none else "—" }}</td>
+      <td class="num">{{ (st.top3_pct ~ "%") if st and st.top3_pct is not none else "—" }}</td>
+      <td class="hint">{{ (s.created_at or "")[:10] }}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% else %}<div class="empty">No scans yet.</div>{% endif %}
+</div>
+{% endblock %}

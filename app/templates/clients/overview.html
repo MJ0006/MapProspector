@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block content %}
+{% include "clients/_tabs.html" %}
+<div class="grid grid-2">
+  <div>
+    <div class="card">
+      <div class="actions" style="justify-content:space-between"><h2 style="margin:0">Health Scorecard <span class="badge warn">Draft</span></h2>
+        <form method="post" action="/clients/{{ co.id }}/synthesize"><button class="btn-primary">Update plan</button></form></div>
+      <p class="hint" style="margin-top:6px">Written by Local SEO Brain from the evidence below. Every line points to its source; missing evidence is marked, not guessed.</p>
+      {% if scorecard %}<div class="md">{{ scorecard | safe }}</div>{% else %}<div class="empty">Upload evidence, then click "Update plan".</div>{% endif %}
+    </div>
+    {% if roadmap %}<div class="card"><h2>Action Roadmap <span class="badge warn">Draft</span></h2><div class="md">{{ roadmap | safe }}</div></div>{% endif %}
+    {% if has_report %}<p><a class="btn" href="/clients/{{ co.id }}/weekly-report" target="_blank">Open weekly report (HTML)</a></p>{% endif %}
+  </div>
+  <div>
+    <form class="card" method="post" action="/clients/{{ co.id }}/evidence" enctype="multipart/form-data">
+      <h2>Add evidence</h2>
+      <div class="field"><label>Type</label><select name="kind">{% for k, v in evidence.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Label (optional)</label><input type="text" name="label"></div>
+      <div class="field"><input type="file" name="file" required></div>
+      <button type="submit">Upload to vault</button>
+      <p class="hint" style="margin-top:8px">Raw files are kept unchanged in the vault's <code>.raw/</code> folder. Review notes leave out reviewer names. Vault: <code>{{ vault }}</code> (open it in Obsidian).</p>
+      {% if sources %}<h3>Sources in the vault ({{ sources | length }})</h3>{% for s in sources %}<div class="hint">{{ s }}</div>{% endfor %}{% endif %}
+    </form>
+    <form class="card" method="post" action="/clients/{{ co.id }}/settings">
+      <h2>Client settings</h2>
+      <div class="field"><label>Name</label><input type="text" name="name" value="{{ co.name }}"></div>
+      <div class="row">
+        <div class="field"><label>Website</label><input type="url" name="website" value="{{ co.website or '' }}"></div>
+        <div class="field"><label>Phone</label><input type="tel" name="phone" value="{{ co.phone or '' }}"></div>
+      </div>
+      <div class="field"><label>Address</label><input type="text" name="address" value="{{ co.address or '' }}"></div>
+      <div class="field"><label>Google review link</label><input type="url" name="review_link" value="{{ co.review_link or '' }}" placeholder="https://search.google.com/local/writereview?placeid=…"></div>
+      <div class="field"><label>Brand voice for AI drafts</label><textarea name="brand_voice" style="min-height:60px" placeholder="Family-owned since 1998, friendly, no jargon">{{ co.brand_voice or '' }}</textarea></div>
+      <div class="row">
+        <div class="field"><label>Google location</label><input type="text" name="gbp_location" value="{{ co.gbp_location or '' }}" placeholder="accounts/…/locations/…"></div>
+        <div class="field"><label>Search Console property</label><input type="text" name="gsc_site" value="{{ co.gsc_site or '' }}" placeholder="sc-domain:example.com"></div>
+      </div>
+      {% if connected %}<p><a href="/clients/{{ co.id }}/link">Pick from your Google account</a></p>{% endif %}
+      <div class="actions"><button type="submit">Save</button>
+        <button type="submit" class="btn-danger" formaction="/clients/{{ co.id }}/delete" onclick="return confirm('Remove this client from MapProspector? Its vault folder stays on disk.')">Delete client</button></div>
+    </form>
+    <div class="card">
+      <h2>Quick links</h2>
+      <p>{% if place %}<a href="/rank/new?place_id={{ place.id }}">New heat map</a> · <a href="/aivis/new?place_id={{ place.id }}">AI visibility</a> · {% endif %}
+        <a href="/tools?company_id={{ co.id }}">Content tools</a> · <a href="/crm/questionnaires">Send onboarding questionnaire</a></p>
+      {% for s in scans %}{% set st = s.stats | loads({}) %}<div class="hint"><a href="/rank/{{ s.id }}">"{{ s.keyword }}"</a> avg {{ st.avg_rank_all if st else "—" }} · {{ (s.created_at or "")[:10] }}</div>{% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

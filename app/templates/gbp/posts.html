@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+{% include "clients/_tabs.html" %}
+<div class="grid grid-1-2">
+  <div>
+    <form class="card" method="post" action="/clients/{{ co.id }}/posts/draft">
+      <h2>Draft posts with Claude</h2>
+      <div class="field"><label>Topic</label><input type="text" name="topic" placeholder="Fall gutter cleaning reminder" required></div>
+      <div class="row">
+        <div class="field"><label>Tone</label><input type="text" name="tone" placeholder="{{ co.brand_voice or 'friendly' }}"></div>
+        <div class="field"><label>Length</label><select name="length"><option>short</option><option>medium</option><option>long</option></select></div>
+        <div class="field"><label>How many</label><input type="number" name="count" value="1" min="1" max="8"></div>
+      </div>
+      <div class="field"><label>Facts to use (offers, services, events)</label><textarea name="facts" style="min-height:70px"></textarea></div>
+      <button class="primary" type="submit" {% if not modules.claude %}disabled{% endif %}>Draft</button>
+      {% if not modules.claude %}<p class="hint">Needs the claude CLI.</p>{% endif %}
+    </form>
+    <form class="card" method="post" action="/clients/{{ co.id }}/posts/manual">
+      <h2>Write one yourself</h2>
+      <div class="field"><textarea name="body" required></textarea></div>
+      <button type="submit">Add draft</button>
+    </form>
+  </div>
+  <div>
+    {% if rows | selectattr("status", "equalto", "drafting") | list %}
+    <div class="notice">Claude is drafting… new posts appear here as they finish.</div><script>setTimeout(() => location.reload(), 5000);</script>
+    {% endif %}
+    {% for p in rows %}{% if p.status == "drafting" %}<div class="card"><span class="badge info">drafting…</span> <span class="hint">{{ p.topic }}</span></div>{% else %}
+    <form class="card" method="post" action="/gbp/posts/{{ p.id }}/approve">
+      <div class="actions" style="justify-content:space-between">
+        <span><span class="badge {{ 'good' if p.status == 'published' else 'info' if p.status in ['approved','scheduled'] else 'bad' if p.status == 'failed' else '' }}">{{ p.status }}</span>
+          {% if p.scheduled_at %}<span class="hint">for {{ p.scheduled_at[:16].replace("T", " ") }} UTC</span>{% endif %}
+          <span class="hint">{{ p.topic or "" }}</span></span>
+        <span class="hint">{{ (p.body or "") | length }} chars</span>
+      </div>
+      {% if p.error %}<div class="notice warn" style="margin-top:8px">{{ p.error }}</div>{% endif %}
+      <div class="field" style="margin-top:8px"><textarea name="body" id="post-{{ p.id }}" style="min-height:120px" {% if p.status == 'published' %}readonly{% endif %}>{{ p.body }}</textarea></div>
+      {% if p.status != "published" %}
+      <div class="row">
+        <div class="field"><select name="cta">{% for k, v in ctas.items() %}<option value="{{ k }}" {% if p.cta == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></div>
+        <div class="field"><input type="url" name="cta_url" value="{{ p.cta_url or '' }}" placeholder="Button link"></div>
+        <div class="field"><input type="datetime-local" name="scheduled_at"></div>
+      </div>
+      <div class="actions">
+        {% if p.status == "draft" %}<button type="submit">Approve</button>{% endif %}
+        {% if connected and co.gbp_location %}<button class="primary" type="submit" formaction="/gbp/posts/{{ p.id }}/publish">Publish now</button>
+          <button type="submit" formaction="/gbp/posts/{{ p.id }}/schedule">Schedule</button>
+        {% else %}<button type="button" onclick="navigator.clipboard.writeText(document.getElementById('post-{{ p.id }}').value)">Copy</button>
+          <button type="submit" formaction="/gbp/posts/{{ p.id }}/mark_published">Mark posted</button>
+          <button type="submit" formaction="/gbp/posts/{{ p.id }}/schedule" title="Reminder when it's due">Schedule reminder</button>{% endif %}
+        <button type="submit" class="btn-danger" formaction="/gbp/posts/{{ p.id }}/delete">Delete</button>
+      </div>
+      {% endif %}
+    </form>
+    {% endif %}{% else %}<div class="card empty">No posts yet.</div>{% endfor %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% set icon = {"pass": "✓", "fail": "✕", "warn": "!", "na": "–"} %}
+<div class="grid grid-4">
+  <div class="card stat"><b class="check-fail">{{ counts.fail }}</b><span>Issues found</span></div>
+  <div class="card stat"><b class="check-warn">{{ counts.warn }}</b><span>Worth improving</span></div>
+  <div class="card stat"><b class="check-pass">{{ counts.pass }}</b><span>Passed</span></div>
+  <div class="card stat"><b>{{ counts.pass + counts.fail + counts.warn }}</b><span>Checks performed</span></div>
+</div>
+{% for group, items in groups.items() %}
+<div class="card">
+  <h2>{{ group }}</h2>
+  <table>
+    {% for c in items %}
+    <tr>
+      <td style="width:28px" class="check-{{ c.status }}"><b>{{ icon[c.status] }}</b></td>
+      <td style="width:34%"><b>{{ c.label }}</b></td>
+      <td>{{ c.detail }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endfor %}
+<p class="hint">Each line is one check that was actually run, with what was observed. A single HTML download is not a full crawl or Core Web Vitals field data, and passing checks does not guarantee rankings.</p>
