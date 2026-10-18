@@ -225,3 +225,15 @@ def test_pages_enable_ai_buttons_for_any_ready_platform(client, monkeypatch):
     ask = client.get("/ask").text
     assert "local models can't read app data" in ask and "disabled>Ask</button>" in ask
     assert "Automatic checks need an AI platform with web search" in client.get("/citations").text
+
+
+def test_ai_visibility_check_asks_each_subscription_cli_itself(fakes):
+    from app.modules.aivis import engine
+    rid = db.insert("aivis_runs", business_name="Acme Plumbing", city="Austin", category="plumber", status="queue",
+                    created_at=db.now())
+    engine.run(rid)
+    calls = fakes()
+    assert sorted({c["name"] for c in calls}) == ["claude", "codex", "gemini"] and len(calls) == 15  # 5 questions each
+    assert all('web_search="live"' in c["args"] for c in calls if c["name"] == "codex")
+    report = db.loads(db.one("SELECT report FROM aivis_runs WHERE id = ?", rid)["report"])
+    assert {e["name"] for e in report["engines"]} == {"Claude", "ChatGPT", "Gemini"}

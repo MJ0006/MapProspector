@@ -82,27 +82,6 @@ KEYS = [
         "env": "GOOGLE_OAUTH_CLIENT_ID=1234567890-abc.apps.googleusercontent.com\nGOOGLE_OAUTH_CLIENT_SECRET=GOCSPX-...",
     },
     {
-        "id": "ai-engines", "module": None, "title": "AI visibility engines (API keys)",
-        "keys": ["OPENAI_API_KEY", "PERPLEXITY_API_KEY", "GEMINI_API_KEY", "XAI_API_KEY"],
-        "optional_keys": ["OPENAI_MODEL", "PERPLEXITY_MODEL", "GEMINI_MODEL", "XAI_MODEL"],
-        "unlocks": "Extra engines on the AI visibility page: how ChatGPT, Perplexity, Gemini and Grok answer about a "
-                   "business. (Drafts don't need these: they use your subscriptions, see AI platforms.)",
-        "cost": "Each company bills per use; one AI visibility check is 5 questions per engine, a few cents.",
-        "steps": [
-            'OpenAI: <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com/api-keys</a> '
-            "→ <b>Create new secret key</b> (add a little credit under Billing). → <code>OPENAI_API_KEY</code>",
-            'Perplexity: <a href="https://www.perplexity.ai/settings/api" target="_blank" rel="noopener">perplexity.ai/settings/api</a> '
-            "→ add credit → <b>Generate API key</b>. → <code>PERPLEXITY_API_KEY</code>",
-            'Gemini: <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> '
-            "→ <b>Create API key</b>. → <code>GEMINI_API_KEY</code>",
-            'Grok: <a href="https://console.x.ai/" target="_blank" rel="noopener">console.x.ai</a> → <b>API keys</b> → '
-            "<b>Create</b>. → <code>XAI_API_KEY</code>",
-            "If a model name is retired, set <code>OPENAI_MODEL</code>, <code>PERPLEXITY_MODEL</code>, "
-            "<code>GEMINI_MODEL</code> or <code>XAI_MODEL</code> to the current one from that company's model list.",
-        ],
-        "env": "OPENAI_API_KEY=sk-...\nPERPLEXITY_API_KEY=pplx-...\nGEMINI_API_KEY=AIza...\nXAI_API_KEY=xai-...",
-    },
-    {
         "id": "smtp", "module": "smtp", "title": "Email sending (SMTP)",
         "keys": ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASSWORD", "SMTP_FROM"],
         "unlocks": "Approved emails, review requests and scheduled reports are sent for you. Without it they wait in "
@@ -189,10 +168,10 @@ def setup_checklist() -> list[dict]:
         if k["module"]:
             items.append({"title": k["title"], "on": mods.get(k["module"], False), "href": f"#{k['id']}",
                           "detail": "on" if mods.get(k["module"]) else "not set"})
-    engines = [n for n, flag in (("ChatGPT", "openai"), ("Perplexity", "perplexity"), ("Gemini", "gemini"),
-                                 ("Grok", "grok")) if mods.get(flag)]
-    items.append({"title": "AI visibility engines", "on": bool(engines), "href": "#ai-engines",
-                  "detail": ", ".join(engines) if engines else "Claude only (others optional)"})
+    from app.providers import ai_engines
+    engines = [ai_engines.ENGINES[e] for e in ai_engines.available()]
+    items.append({"title": "AI visibility engines", "on": bool(engines), "href": "#ai",
+                  "detail": ", ".join(engines) if engines else "none ready (uses your AI platforms)"})
     items.append({"title": "Sharing links with clients", "on": not settings.PUBLIC_BASE_URL.startswith(("http://127.", "http://localhost")),
                   "href": "#sharing", "detail": settings.PUBLIC_BASE_URL})
     return items

@@ -20,11 +20,6 @@ INTEGRATIONS = [
     ("places", "Google Places API (New)", "Lead search, rank scans (Places mode), profile-lock monitoring"),
     ("dataforseo", "DataForSEO", "True per-point Maps SERP scans, keyword volume / CPC / difficulty"),
     ("google_oauth", "Google OAuth (GBP + Search Console)", "Publish posts, replies, photos; GBP insights; Search Console data"),
-    ("claude", "Claude Code CLI (your subscription)", "Claude engine in AI visibility (drafts: see AI platforms below)"),
-    ("openai", "OpenAI", "ChatGPT engine in AI visibility"),
-    ("perplexity", "Perplexity", "Perplexity engine in AI visibility"),
-    ("gemini", "Google Gemini", "Gemini engine in AI visibility"),
-    ("grok", "xAI Grok", "Grok engine in AI visibility"),
     ("smtp", "SMTP email", "Sending approved emails and scheduled reports"),
 ]
 

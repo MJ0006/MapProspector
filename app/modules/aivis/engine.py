@@ -111,7 +111,7 @@ def build_report(business: dict, rows: list[dict], aio_grid: dict | None = None)
         cited = bool(site) and any(d == site or d.endswith("." + site) for d in doms)
         prompts.append({"engine": r["engine"], "prompt": r["prompt"], "presence": status, "position": pos,
                         "cited": cited, "excerpt": r["text"][:600]})
-        e = engines.setdefault(r["engine"], {"engine": r["engine"], "name": ai_engines.ENGINES[r["engine"]],
+        e = engines.setdefault(r["engine"], {"engine": r["engine"], "name": ai_engines.LABELS.get(r["engine"], r["engine"]),
                                              "prompts": 0, "appearances": 0, "recommended": 0, "cited": 0,
                                              "you_best": None})
         e["prompts"] += 1
@@ -128,7 +128,7 @@ def build_report(business: dict, rows: list[dict], aio_grid: dict | None = None)
                 wins[key] += 1
                 per_engine_wins[r["engine"]][key] += 1
             if b.get("reason") and key != name and len(reasons) < 12:
-                reasons.append({"name": b["name"], "engine": ai_engines.ENGINES[r["engine"]], "quote": b["reason"]})
+                reasons.append({"name": b["name"], "engine": ai_engines.LABELS.get(r["engine"], r["engine"]), "quote": b["reason"]})
         for d in doms:
             src[d] += 1
     for eng, counter in per_engine_top.items():
@@ -221,7 +221,7 @@ def _run(run_id: int) -> None:
     engines = ai_engines.available()
     if not engines:
         db.update("aivis_runs", run_id, status="failed",
-                  error="No answer engine available. Install the claude CLI or add an AI API key.")
+                  error="No answer engine available. Set up Claude, ChatGPT (Codex) or Gemini on Settings → AI platforms.")
         return
     rows = []
     for engine in engines:

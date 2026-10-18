@@ -28,12 +28,12 @@ def test_saving_a_key_turns_the_module_on_without_restart(client, monkeypatch):
 
 
 def test_blank_secret_keeps_value_and_clear_removes_it(client, monkeypatch):
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    client.post("/settings/keys", data={"OPENAI_API_KEY": "sk-abcdef9999"})
-    client.post("/settings/keys", data={"OPENAI_API_KEY": ""})
-    assert os.environ["OPENAI_API_KEY"] == "sk-abcdef9999"
-    client.post("/settings/keys", data={"clear_OPENAI_API_KEY": "1"})
-    assert "OPENAI_API_KEY" not in os.environ and not envfile.read(settings.ENV_FILE).get("OPENAI_API_KEY")
+    monkeypatch.delenv("DATAFORSEO_PASSWORD", raising=False)
+    client.post("/settings/keys", data={"DATAFORSEO_PASSWORD": "dfs-abcdef9999"})
+    client.post("/settings/keys", data={"DATAFORSEO_PASSWORD": ""})
+    assert os.environ["DATAFORSEO_PASSWORD"] == "dfs-abcdef9999"
+    client.post("/settings/keys", data={"clear_DATAFORSEO_PASSWORD": "1"})
+    assert "DATAFORSEO_PASSWORD" not in os.environ and not envfile.read(settings.ENV_FILE).get("DATAFORSEO_PASSWORD")
 
 
 def test_plain_fields_show_and_public_url_needs_restart(client, monkeypatch):
@@ -47,15 +47,15 @@ def test_plain_fields_show_and_public_url_needs_restart(client, monkeypatch):
 
 
 def test_keys_are_local_only_and_journal_has_names_not_values(client, monkeypatch):
-    monkeypatch.delenv("XAI_API_KEY", raising=False)
+    monkeypatch.delenv("DATAFORSEO_PASSWORD", raising=False)
     from app import security
     real = security.is_local
     monkeypatch.setattr(security, "is_local", lambda request: False)  # a request from another computer
-    assert client.post("/settings/keys", data={"XAI_API_KEY": "xai-secret"}).status_code == 403
+    assert client.post("/settings/keys", data={"DATAFORSEO_PASSWORD": "xai-secret"}).status_code == 403
     monkeypatch.setattr(security, "is_local", real)  # (not monkeypatch.undo(): that would undo conftest's isolation)
-    client.post("/settings/keys", data={"XAI_API_KEY": "xai-secret"})
+    client.post("/settings/keys", data={"DATAFORSEO_PASSWORD": "xai-secret"})
     ev = db.one("SELECT * FROM events WHERE action = 'keys_saved'")
-    assert ev["detail"] == "XAI_API_KEY" and "xai-secret" not in (ev["data"] or "")
+    assert ev["detail"] == "DATAFORSEO_PASSWORD" and "xai-secret" not in (ev["data"] or "")
     assert "DATA_DIR" not in client.get("/settings").text.split('id="keys"')[1].split('id="ai"')[0]
 
 
