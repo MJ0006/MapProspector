@@ -99,7 +99,7 @@ def render_report(slug: str) -> Path:
 def deliverable(slug: str, name: str) -> str | None:
     """Read 'Health Scorecard' or 'Action Roadmap' markdown from a client vault."""
     path = vault_path(slug) / "wiki" / "deliverables" / f"{name}.md"
-    return strip_frontmatter(path.read_text()) if path.exists() else None
+    return strip_frontmatter(path.read_text(encoding="utf-8")) if path.exists() else None
 
 
 def vault_sources(slug: str) -> list[str]:
@@ -136,7 +136,7 @@ def prompt_note(name: str) -> dict:
     path = WIKI / "prompts" / f"{name}.md"
     if not path.exists():
         raise BrainError(f"Brain prompt not found: {name}")
-    raw = path.read_text()
+    raw = path.read_text(encoding="utf-8")
     title = re.search(r'^title:\s*"?(.*?)"?\s*$', raw, re.M)
     conf = re.search(r'^confidence:\s*"?(.*?)"?\s*$', raw, re.M)
     sec = _sections(strip_frontmatter(raw))
@@ -157,13 +157,13 @@ def list_prompts() -> list[dict]:
 def chapter(rel: str, limit: int = 4000) -> str:
     """Body text of a wiki chapter, e.g. 'gbp/gbp-posts'."""
     path = WIKI / f"{rel}.md"
-    return strip_frontmatter(path.read_text())[:limit] if path.exists() else ""
+    return strip_frontmatter(path.read_text(encoding="utf-8"))[:limit] if path.exists() else ""
 
 
 def doctrine(number: int, limit: int = 3000) -> str:
     """Current-doctrine note from references/canon (001 GBP, 002 content/spam, 003 local/structured/AI)."""
     for p in CANON.glob(f"{number:03d}-*.md"):
-        return strip_frontmatter(p.read_text())[:limit]
+        return strip_frontmatter(p.read_text(encoding="utf-8"))[:limit]
     return ""
 
 

@@ -1,4 +1,4 @@
-// Starts and stops the MapProspector server (python -m uvicorn app.main:app) for the desktop window.
+// Starts and stops the MapProspector server (python -m app.desktop_run) for the desktop window.
 import { spawn, type ChildProcess } from 'child_process';
 import fs from 'fs';
 import net from 'net';
@@ -36,7 +36,9 @@ export function ensureEnvFile(p: Paths): void {
   if (fs.existsSync(p.envFile)) return;
   fs.mkdirSync(path.dirname(p.envFile), { recursive: true });
   const example = path.join(p.root, '.env.example');
-  fs.writeFileSync(p.envFile, fs.existsSync(example) ? fs.readFileSync(example) : '');
+  const text = fs.existsSync(example) ? fs.readFileSync(example, 'utf8') : '';
+  // The app always keeps its data next to this file, so the DATA_DIR setting would be ignored here.
+  fs.writeFileSync(p.envFile, text.replace(/^# Where the database[^\n]*\n(DATA_DIR=[^\n]*\n)?/m, ''));
 }
 
 function portFree(port: number): Promise<boolean> {
@@ -105,11 +107,14 @@ export class Server {
     const log = fs.createWriteStream(p.logFile, { flags: 'a' });
     log.write(`\n--- ${new Date().toISOString()} starting on ${this.url} (python: ${p.python})\n`);
     this.stopping = false;
-    const child = spawn(p.python, ['-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', String(this.port)], {
+    // stdin stays open as the link to this window: the server stops when it closes (see app/desktop_run.py).
+    const child = spawn(p.python, ['-m', 'app.desktop_run', '--port', String(this.port)], {
       cwd: p.root,
       env,
+      stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true, // no console window; Claude and Local SEO Brain child processes stay hidden too
     });
+    child.stdin?.on('error', () => {}); // writing "quit" to a server that already exited
     this.child = child;
     child.stdout?.pipe(log, { end: false });
     child.stderr?.pipe(log, { end: false });
@@ -146,13 +151,15 @@ export class Server {
     if (!child || child.exitCode !== null) return;
     this.stopping = true;
     const done = new Promise<void>((resolve) => child.once('exit', () => resolve()));
-    if (process.platform === 'win32') {
-      // /T also ends a running `claude` or Local SEO Brain process started by the server.
-      spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true });
-    } else {
-      child.kill('SIGTERM');
-    }
-    const timer = setTimeout(() => child.kill('SIGKILL'), 8_000);
+    child.stdin?.write('quit\n'); // clean stop: the scheduler and database close properly
+    const timer = setTimeout(() => {
+      if (process.platform === 'win32') {
+        // /T also ends a running `claude` or Local SEO Brain process started by the server.
+        spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true });
+      } else {
+        child.kill('SIGKILL');
+      }
+    }, 20_000);
     await done;
     clearTimeout(timer);
   }

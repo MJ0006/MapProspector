@@ -13,7 +13,7 @@ def scan_completed(scan_id: int) -> None:
         return
     path = settings.UPLOAD_DIR / f"geogrid-scan-{scan_id}.csv"
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", newline="") as f:
+    with path.open("w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(["keyword", "rank", "lat", "lng"])
         for p in db.all("SELECT * FROM scan_points WHERE scan_id = ? AND results IS NOT NULL ORDER BY idx", scan_id):

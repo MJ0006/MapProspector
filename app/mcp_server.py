@@ -220,6 +220,7 @@ def handle(msg: dict) -> dict | None:
 
 def main() -> None:
     db.init()
+    sys.stdin.reconfigure(encoding="utf-8")  # JSON-RPC is UTF-8; Windows would otherwise decode as cp1252
     for line in sys.stdin:
         line = line.strip()
         if not line:

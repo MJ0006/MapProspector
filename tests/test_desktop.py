@@ -32,3 +32,39 @@ def test_env_file_from_environment(tmp_path):
     out = subprocess.run([sys.executable, "-c", "from app import settings; print(settings.env('GOOGLE_API_KEY'), "
                           "settings.DATA_DIR)"], capture_output=True, text=True, env=env, cwd=settings.ROOT, check=True)
     assert out.stdout.split() == ["from-desktop-env", str(tmp_path / "data")]
+
+
+def _serve(tmp_path):
+    import socket
+    import time
+    import urllib.request
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    env = {**os.environ, "DATA_DIR": str(tmp_path / "data"), "MAPPROSPECTOR_NO_JOBS": "1",
+           "MAPPROSPECTOR_ENV_FILE": str(tmp_path / "none.env"),
+           "PYTHONPATH": os.pathsep.join(p for p in sys.path if p)}  # conftest moved HOME (user site-packages)
+    proc = subprocess.Popen([sys.executable, "-m", "app.desktop_run", "--port", str(port)], cwd=settings.ROOT, env=env,
+                            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    for _ in range(100):
+        try:
+            urllib.request.urlopen(f"http://127.0.0.1:{port}/static/favicon.svg", timeout=1)
+            return proc
+        except OSError:
+            time.sleep(0.2)
+    proc.kill()
+    raise AssertionError(proc.stdout.read())
+
+
+def test_desktop_server_quits_cleanly_on_request(tmp_path):
+    proc = _serve(tmp_path)
+    proc.stdin.write("quit\n")
+    proc.stdin.flush()
+    assert proc.wait(timeout=20) == 0
+    assert "Application shutdown complete" in proc.stdout.read()
+
+
+def test_desktop_server_stops_when_the_window_is_gone(tmp_path):
+    proc = _serve(tmp_path)
+    proc.stdin.close()  # what the OS does when the app window process ends, even if it crashed
+    assert proc.wait(timeout=20) == 0

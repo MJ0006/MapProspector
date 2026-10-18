@@ -165,6 +165,6 @@ def client_citations_to_brain(company_id: int):
     co = company_or_404(company_id)
     path = settings.UPLOAD_DIR / f"citations-{company_id}.csv"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(client_citations_export(company_id).body.decode())
+    path.write_text(client_citations_export(company_id).body.decode(), encoding="utf-8")
     brain.ingest("citations", co["vault_slug"], path)
     return redirect(f"/clients/{company_id}/citations")

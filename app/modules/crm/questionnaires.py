@@ -110,6 +110,6 @@ async def public_q_submit(request: Request, token: str):
         for qq in q["questions"]:
             a = answers.get(qq["id"])
             lines += [f"## {qq['label']}", ", ".join(a) if isinstance(a, list) else (a or "(no answer)"), ""]
-        path.write_text("\n".join(lines))
+        path.write_text("\n".join(lines), encoding="utf-8")
         brain.ingest("source", company["vault_slug"], path, label=f"Onboarding questionnaire {q['name']}")
     return redirect(f"/q/{token}?sent=1")

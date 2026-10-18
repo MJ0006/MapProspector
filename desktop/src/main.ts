@@ -45,6 +45,10 @@ function createWindow(): BrowserWindow {
     title: 'MapProspector',
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
+  // Windows sign-out or shutdown: let the window close so the app quits instead of blocking it.
+  w.on('session-end', () => {
+    quitting = true;
+  });
   w.once('ready-to-show', () => {
     if (!startHidden) w.show();
   });
