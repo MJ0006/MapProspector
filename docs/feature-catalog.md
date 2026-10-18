@@ -270,3 +270,36 @@ Recon date: 2026-10-18. Every LeadSnap feature found by running **rea** (`inspec
    - **Places API (New):** cheaper per call with your Google key, but approximate.
    - **DataForSEO Maps SERP:** what LeadSnap appears to use. Real per-point SERP, top 20, about $0.10 per 7×7 scan. It also gives keyword volume, CPC and difficulty.
 2. **Optional paid modules to enable now or later:** Twilio (calls/SMS), the GBP API (you'd need to apply to Google), and OpenAI/Perplexity/Gemini/Grok keys for AI visibility.
+
+---
+
+## Build status (2026-10-18)
+
+**Legend:**
+- **Built + tested**: unit or route tests plus the browser walkthrough, in demo mode.
+- **Fixtures only**: the live API call is untested here because no keys are available in this environment.
+
+| # | Feature | Status | Where |
+|---|---|---|---|
+| A1 | Geo-grid heat map | Built + tested; Places/DataForSEO live calls fixtures only | `app/modules/rank/` |
+| A2 | Competitors, flip the map, quadrants | Built + tested | `rank/engine.py` `competitors()` |
+| A3 | Rank tracking over time, schedules | Built + tested | `rank/engine.py` schedules |
+| A4 | Keyword data | Built; DataForSEO fixtures only | `providers/dataforseo.py` |
+| A5 | Prospect scan, share link, PDF (print) | Built + tested | `/share/scan/…` |
+| A6 | AI visibility checker | Built + tested with mocked engines; live engines untested | `app/modules/aivis/` |
+| B1 | AI posts + scheduling | Built + tested (draft mode); GBP API publishing fixtures only | `gbp/posts.py` |
+| B2 | Review replies | Built + tested | `gbp/reviews.py` |
+| B3 | Review requests (compliant, no gating) | Built + tested | `/r/{token}` |
+| B4 | Photos, drip, GPS metadata (no ranking claim) | Built + tested | `gbp/photos.py` |
+| B5 | Profile lock | Built + tested (diff/flow); live Places polling fixtures only | `gbp/lock.py` |
+| B6 | GBP insights | Built; API parsing tested with a mocked response | `gbp/routes.py` |
+| B7 | Search Console queries | Built; live API untested | `providers/gbp_api.py` |
+| B8 | Completeness + optimization drafts | Built + tested | `/clients/{id}/optimize` |
+| C1 | Citation audit | Built + tested with mocked Claude lookups | `app/modules/citations/` |
+| C2 | Citation profile + tracker | Built + tested; no automatic syndication (needs a paid provider) | `/clients/{id}/citations` |
+| D1–D6 | Contacts, pipeline, automations, forms + spam, tasks, questionnaires | Built + tested | `app/modules/crm/` |
+| E1 | Call tracking | **Not built** (deferred by you; needs Twilio) | — |
+| F1 | Client reports | Built + tested | `app/modules/reports/` |
+| F2 | White label (branding) | Built (settings → branding) | `/settings` |
+| F3 | MCP server + Ask | Built + tested (protocol + tools) | `app/mcp_server.py`, `.mcp.json` |
+| G1–G3 | Website audit, content tools, client vaults | Built + tested; brain's own tests pass on the pinned submodule | `app/modules/audit/`, `app/brain.py` |

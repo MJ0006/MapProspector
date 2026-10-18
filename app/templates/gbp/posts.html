@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 {% include "clients/_tabs.html" %}
-<div class="grid grid-2" style="grid-template-columns:minmax(0,1fr) minmax(0,2fr)">
+<div class="grid grid-1-2">
   <div>
     <form class="card" method="post" action="/clients/{{ co.id }}/posts/draft">
       <h2>Draft posts with Claude</h2>

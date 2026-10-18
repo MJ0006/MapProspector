@@ -7,7 +7,7 @@
   <div class="card stat"><b>{{ stats.requests }}</b><span>Review requests sent</span></div>
   <div class="card stat"><b>{{ ((100 * stats.clicked / stats.requests) | round | int) if stats.requests else 0 }}%</b><span>Clicked through to Google</span></div>
 </div>
-<div class="grid grid-2" style="grid-template-columns:minmax(0,2fr) minmax(0,1fr)">
+<div class="grid grid-2-1">
   <div>
     <div class="actions" style="margin-bottom:12px">
       <a class="btn {{ 'btn-primary' if show == 'todo' else '' }}" href="?show=todo">To answer</a>

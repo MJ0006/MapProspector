@@ -4,7 +4,7 @@
   <div><h1>Content tools</h1><p>Local SEO Brain prompts, run by Claude on your subscription. Drafts use only the facts you enter and follow the brain's rules.</p></div>
 </div>
 {% if not modules.claude %}<div class="notice warn">The <code>claude</code> CLI was not found. Install Claude Code and log in to use these tools.</div>{% endif %}
-<div class="grid grid-2" style="grid-template-columns:minmax(0,1fr) minmax(0,2fr)">
+<div class="grid grid-1-2">
   <div class="card">
     {% for group, names in groups.items() %}
     <h3 style="margin-top:8px">{{ group }}</h3>

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 {% include "clients/_tabs.html" %}
-<div class="grid grid-2" style="grid-template-columns:minmax(0,1fr) minmax(0,2fr)">
+<div class="grid grid-1-2">
   <form class="card" method="post" action="/clients/{{ co.id }}/photos" enctype="multipart/form-data">
     <h2>Upload photos</h2>
     <div class="field"><input type="file" name="files" accept=".jpg,.jpeg,.png,.webp" multiple required></div>

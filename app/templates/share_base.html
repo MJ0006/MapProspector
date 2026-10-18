@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ title }} · {{ brand.name }}</title>
   <script>try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/theme.css">
   {% if brand.color and brand.color != "#2563eb" %}<style>:root, :root[data-theme] { --accent: {{ brand.color }}; }</style>{% endif %}
   {% block head %}{% endblock %}

@@ -8,7 +8,7 @@
   <div class="card stat"><b>{% if change is not none %}{{ "+" if change > 0 else "" }}{{ change }}{% else %}—{% endif %}</b>
     <span>Change vs previous scan (positive = better)</span></div>
 </div>
-<div class="grid grid-2" style="grid-template-columns: minmax(0,2fr) minmax(0,1fr)">
+<div class="grid grid-2-1">
   <div class="card">
     <div class="actions" style="justify-content:space-between;margin-bottom:8px">
       <h2 style="margin:0">Showing: <span id="who">{{ place.name if place else "—" }}</span></h2>
@@ -31,7 +31,7 @@
       <th class="num">Rating</th><th class="num">Reviews</th><th class="num">Photos</th><th>Links</th></tr>
     {% for c in competitors[:50] %}{% set b = c.business %}
     <tr {% if c.you %}style="background:var(--info-bg)"{% endif %}>
-      <td>{{ c.position }}</td><td>{{ b.name }}{% if c.you %} <span class="badge info">you</span>{% endif %}</td>
+      <td>{{ c.position }}</td><td style="min-width:170px">{{ b.name }}{% if c.you %} <span class="badge info">you</span>{% endif %}</td>
       <td class="hint">{{ b.primary_category or "" }}</td>
       <td class="num">{{ c.avg_rank_all }}</td><td class="num">{{ c.avg_rank if c.avg_rank is not none else "—" }}</td>
       <td class="num">{{ c.top3_pct }}%</td><td class="num">{{ c.share_top3 }}%</td><td class="num">{{ c.found_points }}</td>
