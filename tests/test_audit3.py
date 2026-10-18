@@ -252,4 +252,17 @@ def test_old_checks_with_retired_engines_still_render_and_only_ready_platforms_r
                     report=report, created_at=db.now())
     assert "Grok" in client.get(f"/aivis/{rid}").text
     monkeypatch.setattr(ai, "candidates", lambda **k: [object()] if k.get("only") == "codex" else [])
+    monkeypatch.setattr(ai.PLATFORMS["codex"], "signed_in", lambda: True)
     assert ai_engines.available() == ["chatgpt"]
+
+
+def test_signed_out_platforms_are_not_offered_and_redirect_sources_are_dropped(monkeypatch):
+    monkeypatch.setattr(ai, "candidates", lambda **k: [object()])
+    monkeypatch.setattr(ai.PLATFORMS["gemini"], "signed_in", lambda: False)
+    monkeypatch.setattr(ai.PLATFORMS["codex"], "signed_in", lambda: None)  # unknown: still offered
+    monkeypatch.setattr(ai.PLATFORMS["claude"], "signed_in", lambda: True)
+    assert ai_engines.available() == ["claude", "chatgpt"]
+    text = ("Sources: https://vertexaisearch.cloud.google.com/grounding-api-redirect/AbC https://acme.com/about "
+            "https://www.google.com/url?q=https://x.com\n{}")
+    monkeypatch.setattr(ai, "ask", lambda prompt, **k: text)
+    assert ai_engines.ask("gemini", "q")["sources"] == ["https://acme.com/about"]
