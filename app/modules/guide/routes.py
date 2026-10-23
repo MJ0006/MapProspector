@@ -117,6 +117,20 @@ KEYS = [
         "env": "APP_PASSWORD=pick-a-long-password\nPUBLIC_BASE_URL=https://your-tunnel.example.com",
     },
     {
+        "id": "postgres", "module": None, "title": "PostgreSQL copy (optional)",
+        "keys": ["POSTGRES_URL"],
+        "unlocks": "An hourly one-way copy of all app data into your own PostgreSQL, to query with pgAdmin, DBeaver or SQL. "
+                   "The app keeps running on its own SQLite file either way.",
+        "cost": "Free (your own PostgreSQL).",
+        "steps": [
+            "In pgAdmin or <code>psql</code>, create an empty database, for example <code>CREATE DATABASE mapprospector;</code>",
+            "Set <code>POSTGRES_URL</code> to <code>postgresql://USER:PASSWORD@localhost:5432/mapprospector</code> with your "
+            "Postgres user and password.",
+            "Press <b>Copy now</b> under <b>Settings → Copy to PostgreSQL</b>. Tables appear in the <code>mapprospector</code> schema.",
+        ],
+        "env": "POSTGRES_URL=postgresql://postgres:your-password@localhost:5432/mapprospector",
+    },
+    {
         "id": "advanced", "module": None, "title": "Advanced settings (usually leave empty)",
         "keys": ["CLAUDE_PATH", "CODEX_PATH", "GEMINI_PATH", "OLLAMA_HOST", "DATA_DIR"],
         "unlocks": "Only needed when the app can't find an AI tool by itself, Ollama runs elsewhere, or (outside the "

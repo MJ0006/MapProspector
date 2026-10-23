@@ -189,7 +189,7 @@ Recon date: 2026-10-18. Every LeadSnap feature found by running **rea** (`inspec
   - contact fields: name, email, phone, address, business, socials, source, tags, `is_spam` and spam reason, do-not-disturb, last-activity type/time
   - contact timeline and conversations by channel
   - companies (clients) and lead sources
-- **MapProspector backend:** same data model in SQLite. Places-search prospects become leads with their audit attached.
+- **MapProspector backend:** same data model in SQLite. Places-search prospects become leads with their audit attached. "Find email on website" reads the lead's own homepage and contact/about pages (never Google) for a published email.
 - **Status:** build.
 
 ### D2. Sales pipeline

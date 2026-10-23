@@ -118,3 +118,31 @@ def test_crm_pages_render(client):
     assert client.post(f"/crm/outbox/{oid2}/approve", data={"body": "b", "to_addr": ""}).status_code == 400
     r = client.post("/crm/contacts/import", files={"file": ("c.csv", b"business_name,email,tags\nBeta Co,b@b.co,hot\n", "text/csv")})
     assert db.one("SELECT source FROM contacts WHERE business_name = 'Beta Co'")["source"] == "import"
+
+
+def test_find_email_on_own_website(client, monkeypatch):
+    import httpx
+    from app.modules.crm import emails, routes
+    pages = {
+        "https://joesplumbing.com/": '<a href="/contact-us">Contact</a><a href="https://other.com/contact">x</a>'
+                                     '<img src="logo@2x.png"> <script>"x@sentry.io"</script>',
+        "https://joesplumbing.com/contact-us": '<a href="mailto:Hello@JoesPlumbing.com">mail</a> or joe.bloggs&#64;gmail.com',
+    }
+    seen = []
+
+    def handler(request):
+        seen.append(str(request.url))
+        return httpx.Response(200, text=pages.get(f"https://{request.url.host}{request.url.path}", ""))
+    http = httpx.Client(transport=httpx.MockTransport(handler))
+    out = emails.find("joesplumbing.com", client=http)
+    assert out["emails"] == ["hello@joesplumbing.com", "joe.bloggs@gmail.com"]  # own domain first, junk dropped
+    assert "https://other.com/contact" not in seen  # never leaves the business's site
+
+    real_find = emails.find
+    monkeypatch.setattr(emails, "find", lambda url: real_find(url, client=http))
+    cid = routes.create_contact(business_name="Joe's", website="https://joesplumbing.com/", source="prospecting")
+    client.post(f"/crm/contacts/{cid}/find-email")
+    assert db.one("SELECT email FROM contacts WHERE id = ?", cid)["email"] == "hello@joesplumbing.com"
+    db.update("contacts", cid, email="kept@x.com")
+    client.post(f"/crm/contacts/{cid}/find-email")
+    assert db.one("SELECT email FROM contacts WHERE id = ?", cid)["email"] == "kept@x.com"  # never overwrites

@@ -17,7 +17,7 @@ RESTART_NEEDED = {"PUBLIC_BASE_URL", "PLACES_SCAN_DETAIL"}  # read once when the
 
 
 def is_secret(key: str) -> bool:
-    return key.endswith(("_KEY", "_PASSWORD", "_SECRET")) or key == "APP_PASSWORD"
+    return key.endswith(("_KEY", "_PASSWORD", "_SECRET")) or key in ("APP_PASSWORD", "POSTGRES_URL")  # URL holds a password
 
 
 def mask(value: str) -> str:

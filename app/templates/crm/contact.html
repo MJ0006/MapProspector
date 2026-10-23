@@ -42,6 +42,12 @@
       {% endif %}
       <div class="actions" style="margin-top:12px"><button class="primary" type="submit">Save</button></div>
     </form>
+    {% if c.website %}
+    <form method="post" action="/crm/contacts/{{ c.id }}/find-email" class="actions" style="margin:-8px 0 16px">
+      <button class="btn-sm" type="submit">Find email on website</button>
+      <span class="hint">Reads the homepage and contact/about pages. Fills Email only if it's empty.</span>
+    </form>
+    {% endif %}
     {% if place %}
     <div class="card">
       <h2>Google listing</h2>

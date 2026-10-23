@@ -11,7 +11,7 @@ from pathlib import Path
 from fastapi import FastAPI, Form, Request
 from fastapi.staticfiles import StaticFiles
 
-from app import db, jobs, notify, security, settings  # notify registers its background ticks
+from app import db, jobs, notify, pgcopy, security, settings  # notify and pgcopy register background ticks
 from app.web import redirect, render, safe_back
 
 logging.basicConfig(level=logging.INFO)
@@ -81,14 +81,18 @@ def notices_seen(request: Request):
 
 @app.get("/settings")
 def settings_page(request: Request, saved: int = 0, signin: str = "", opened: int = 1, keys_saved: int = -1,
-                  restart: int = 0):
+                  restart: int = 0, pg_started: int = 0):
     from app.modules.ai_platforms.routes import card_context
     from app.modules.keys.routes import groups as key_groups
     google_connected = db.one("SELECT 1 FROM oauth_tokens WHERE provider = 'google'") is not None
     return render(request, "settings.html", title="Settings", integrations=INTEGRATIONS,
                   saved=saved, google_connected=google_connected, env_file=settings.ENV_FILE,
                   signin=signin, signin_opened=opened, key_groups=key_groups() if security.is_local(request) else None,
-                  keys_saved=keys_saved, keys_restart=restart, **card_context())
+                  keys_saved=keys_saved, keys_restart=restart, db_path=settings.DB_PATH,
+                  pg={"configured": pgcopy.configured(), "at": db.get_setting("pg_copy_at"),
+                      "result": db.get_setting("pg_copy_result"), "error": db.get_setting("pg_copy_error"),
+                      "started": pg_started},
+                  **card_context())
 
 
 @app.post("/settings")
@@ -98,6 +102,12 @@ def settings_save(brand_name: str = Form(""), brand_color: str = Form(""), brand
                        ("brand_logo", brand_logo), ("brand_email", brand_email), ("brand_address", brand_address)]:
         db.set_setting(key, value.strip())
     return redirect("/settings?saved=1")
+
+
+@app.post("/settings/postgres/copy")
+def postgres_copy():
+    pgcopy.start()
+    return redirect("/settings?pg_started=1#postgres")
 
 
 def _mount_modules():
