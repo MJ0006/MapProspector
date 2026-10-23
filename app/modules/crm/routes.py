@@ -139,6 +139,7 @@ def contact_find_email(cid: int):
     if found["emails"]:
         if not c["email"]:
             db.update("contacts", cid, email=found["emails"][0])
+            automations.fire("field_updated", cid, field="email", value=found["emails"][0])
         log_activity(cid, "note", f"Emails on website: {', '.join(found['emails'])}")
     else:
         if found["errors"] and not found["pages"]:

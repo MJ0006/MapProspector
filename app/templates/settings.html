@@ -81,6 +81,7 @@
   <p class="hint">All app data lives in <code>{{ db_path }}</code>. With <code>POSTGRES_URL</code> set under API keys, the app copies every
     table into the <code>mapprospector</code> schema of that database once an hour, so you can query it with pgAdmin, DBeaver or SQL. It is a
     one-way copy: changes made in Postgres are replaced by the next copy. Google sign-in tokens are not copied.</p>
+  {% if pg.started %}<div class="notice good">Copy started. Reload this page in a minute to see the result.</div>{% endif %}
   {% if pg.error %}<div class="notice warn">Last copy failed: {{ pg.error }}</div>{% endif %}
   {% if pg.at %}<p class="hint">Last copy {{ pg.at | localtime }}: {{ pg.result }}.</p>{% endif %}
   {% if pg.configured %}

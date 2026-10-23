@@ -81,7 +81,7 @@ def notices_seen(request: Request):
 
 @app.get("/settings")
 def settings_page(request: Request, saved: int = 0, signin: str = "", opened: int = 1, keys_saved: int = -1,
-                  restart: int = 0):
+                  restart: int = 0, pg_started: int = 0):
     from app.modules.ai_platforms.routes import card_context
     from app.modules.keys.routes import groups as key_groups
     google_connected = db.one("SELECT 1 FROM oauth_tokens WHERE provider = 'google'") is not None
@@ -90,7 +90,8 @@ def settings_page(request: Request, saved: int = 0, signin: str = "", opened: in
                   signin=signin, signin_opened=opened, key_groups=key_groups() if security.is_local(request) else None,
                   keys_saved=keys_saved, keys_restart=restart, db_path=settings.DB_PATH,
                   pg={"configured": pgcopy.configured(), "at": db.get_setting("pg_copy_at"),
-                      "result": db.get_setting("pg_copy_result"), "error": db.get_setting("pg_copy_error")},
+                      "result": db.get_setting("pg_copy_result"), "error": db.get_setting("pg_copy_error"),
+                      "started": pg_started},
                   **card_context())
 
 
@@ -106,7 +107,7 @@ def settings_save(brand_name: str = Form(""), brand_color: str = Form(""), brand
 @app.post("/settings/postgres/copy")
 def postgres_copy():
     pgcopy.start()
-    return redirect("/settings#postgres")
+    return redirect("/settings?pg_started=1#postgres")
 
 
 def _mount_modules():
