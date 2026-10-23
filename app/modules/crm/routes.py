@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 
 from app import db, journal, mailer
-from app.modules.crm import automations, forms_routes, pipeline, questionnaires
+from app.modules.crm import automations, emails, forms_routes, pipeline, questionnaires
 from app.modules.crm import automations_routes
 from app.uploads import read_limited
 from app.web import _localtime, redirect, render, safe_back, row_or_404
@@ -126,6 +126,24 @@ async def contact_update(request: Request, cid: int):
 def contact_note(cid: int, body: str = Form(...), type: str = Form("note")):
     _contact_or_404(cid)
     log_activity(cid, type if type in ("note", "call", "email", "sms") else "note", body)
+    return redirect(f"/crm/contacts/{cid}")
+
+
+@router.post("/crm/contacts/{cid}/find-email")
+def contact_find_email(cid: int):
+    """Read the contact's own website for a published email; fills the Email field only if it's empty."""
+    c = _contact_or_404(cid)
+    if not c["website"]:
+        raise HTTPException(400, "Contact has no website.")
+    found = emails.find(c["website"])
+    if found["emails"]:
+        if not c["email"]:
+            db.update("contacts", cid, email=found["emails"][0])
+        log_activity(cid, "note", f"Emails on website: {', '.join(found['emails'])}")
+    else:
+        if found["errors"] and not found["pages"]:
+            journal.failure("crm", "find_email", "; ".join(found["errors"]), subject_type="contact", subject_id=cid)
+        log_activity(cid, "note", f"No email found on {len(found['pages'])} website page(s).")
     return redirect(f"/crm/contacts/{cid}")
 
 
