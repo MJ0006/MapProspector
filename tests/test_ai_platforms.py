@@ -116,6 +116,18 @@ def test_gemini_json_and_sign_in_error(fakes, monkeypatch):
     assert ai.paused("gemini")["kind"] == "auth"
 
 
+def test_antigravity_runs_without_this_apps_venv(monkeypatch, tmp_path):
+    from app.ai import gemini
+    venv = tmp_path / "venv"
+    monkeypatch.setenv("VIRTUAL_ENV", str(venv))
+    monkeypatch.setenv("PYTHONPATH", "x")
+    monkeypatch.setenv("PATH", os.pathsep.join([str(venv / "Scripts"), str(tmp_path / "other")]))
+    env = gemini._own_env()
+    path = next(v for k, v in env.items() if k.upper() == "PATH")
+    assert path == str(tmp_path / "other")  # plugin hooks find their own python, not ours
+    assert not {"VIRTUAL_ENV", "PYTHONPATH"} & {k.upper() for k in env}
+
+
 def test_ask_with_app_data_uses_read_only_mcp(fakes, monkeypatch):
     from app.mcp_server import READ_ONLY
     monkeypatch.setenv("FAKE_MODE_CLAUDE", "limit")

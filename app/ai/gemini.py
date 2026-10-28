@@ -4,6 +4,7 @@ Gemini CLI stopped serving personal Google accounts on 2026-06-18; Antigravity C
 """
 import json
 import os
+import sys
 from pathlib import Path
 
 from app import settings
@@ -48,7 +49,7 @@ class Gemini(Platform):
         cmd = [self.exe(), "--input-format", "stream-json", "--output-format", "stream-json"]
         event = json.dumps({"event": "user", "message": {"content": prompt}}) + "\n"
         try:
-            out = run_cli(self.label, cmd, event, timeout, cwd=work)
+            out = run_cli(self.label, cmd, event, timeout, cwd=work, env=_own_env())
         except PlatformError as exc:
             raise _from_text(str(exc)) or exc
         result = None
@@ -72,6 +73,19 @@ def _from_text(text: str) -> PlatformError | None:
     if "authentication required" in text.lower():
         return PlatformError(text, "auth")
     return None
+
+
+def _own_env() -> dict:
+    """The environment without this app's Python virtualenv: hooks and plugins you installed in Antigravity run
+    their own `python`, which must not resolve to MapProspector's venv (it lacks their modules)."""
+    env = {k: v for k, v in os.environ.items() if k.upper() not in ("VIRTUAL_ENV", "PYTHONPATH", "PYTHONHOME")}
+    venv = os.environ.get("VIRTUAL_ENV") or (sys.prefix if sys.prefix != sys.base_prefix else "")
+    if venv:
+        root = os.path.normcase(os.path.abspath(venv))
+        key = next((k for k in env if k.upper() == "PATH"), "PATH")
+        env[key] = os.pathsep.join(d for d in env.get(key, "").split(os.pathsep)
+                                   if d and not os.path.normcase(os.path.abspath(d)).startswith(root + os.sep))
+    return env
 
 
 def _allow_mcp() -> None:
