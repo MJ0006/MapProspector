@@ -11,7 +11,7 @@ It covers the feature set of LeadSnap (found by inspecting leadsnap.com's public
 | **Prospecting** | Lead search (Google Places) with opportunity flags · geo-grid **heat maps** with competitor "flip the map", quadrants, schedules, trends, share links, PDF · website and listing **audit** · **AI visibility** checker · **citation audit** |
 | **CRM** | Contacts and timeline · Kanban pipelines · tasks and calendar · **outbox with approval** · automations (triggers, filters, waits, actions) · lead forms with spam filters · onboarding questionnaires |
 | **Client SEO** | A Local SEO Brain vault per client (Draft scorecard, roadmap, weekly report) · **Brain** tab: next action, evidence age, vault health, relationship map · all 37 Brain prompts in Content tools · AI posts · review replies · review requests (no gating) · photo drips · profile lock · insights and Search Console · citation profile and tracker · branded scheduled reports |
-| **AI** | Drafts are written with **your own subscriptions**: Claude (Claude Code), ChatGPT (Codex CLI), Gemini (Gemini CLI), or **local models** (Ollama), in an order you choose. When one hits its limit the next takes over · *Ask* page · MCP server so Claude Code can query your data and start scans |
+| **AI** | Drafts are written with **your own subscriptions**: Claude (Claude Code), ChatGPT (Codex CLI), Gemini (Antigravity CLI), or **local models** (Ollama), in an order you choose. When one hits its limit the next takes over · *Ask* page · MCP server so Claude Code can query your data and start scans |
 | **Journal** | Every job, AI call (with the platform that answered), decision on AI drafts (used as-is / edited / rejected) and failure is recorded. The AI turns your edits into **lessons** you approve, and approved lessons are added to future drafts on every platform, so drafts improve as you use the app. |
 
 **New to the app?** Open **Guide** in the app's menu (`/guide`). It explains every feature with screenshots, and has click-by-click steps for each API key and AI platform.
@@ -76,7 +76,7 @@ Drafts, *Ask* and citation lookups use your own subscriptions through each compa
 |---|---|---|---|
 | Claude | [Claude Code](https://claude.com/claude-code) | run `claude` once | everything |
 | ChatGPT | `npm install -g @openai/codex` | `codex login` (Sign in with ChatGPT) | everything |
-| Gemini | `npm install -g @google/gemini-cli` | run `gemini` once, choose *Login with Google* | everything |
+| Gemini | Antigravity CLI: `irm https://antigravity.google/cli/install.ps1 \| iex` (Windows) or `curl -fsSL https://antigravity.google/cli/install.sh \| bash` | run `agy` once, choose *Google OAuth* | everything |
 | Local | [Ollama](https://ollama.com), then e.g. `ollama pull llama3.1` | none | drafts only (no web search, no app data), no limits |
 
 **Settings → AI platforms** sets the order and turns platforms on or off. It also picks your local model and has a **Sign in** button that opens the platform's login in a terminal.
@@ -85,7 +85,7 @@ The first ready platform answers. If it reports a usage limit, it's skipped unti
 
 Citation lookups need web search, so they skip Ollama. The *Ask* page reads your data through **read-only** tools, so no platform can start scans or change anything. *AI visibility* asks Claude, ChatGPT and Gemini through these same subscriptions (no API keys). It measures each engine's own answers, so it never falls back.
 
-If a tool is installed somewhere unusual, set `CLAUDE_PATH`, `CODEX_PATH` or `GEMINI_PATH` in `.env`. Ollama on another address: `OLLAMA_HOST`.
+If a tool is installed somewhere unusual, set `CLAUDE_PATH`, `CODEX_PATH` or `AGY_PATH` in `.env`. Ollama on another address: `OLLAMA_HOST`.
 
 Every call counts toward that subscription's limits, and each company sets its own terms. Keep this app personal; don't host it for other people.
 
@@ -119,7 +119,7 @@ Try asking: *"Which competitor owns the north side for roof repair in my latest 
 python3 -m pytest -q
 ```
 
-External APIs are tested against recorded responses in `tests/fixtures`, and tests never call a real AI (`claude`, `codex` and `gemini` are fake programs in the tests, and Ollama is a fake server).
+External APIs are tested against recorded responses in `tests/fixtures`, and tests never call a real AI (`claude`, `codex` and `agy` are fake programs in the tests, and Ollama is a fake server).
 
 ## Smoke test on your PC (live services)
 

@@ -1,4 +1,4 @@
-"""AI platforms and fallback, with fake `claude` / `codex` / `gemini` programs and a fake Ollama (no real AI calls)."""
+"""AI platforms and fallback, with fake `claude` / `codex` / `agy` programs and a fake Ollama (no real AI calls)."""
 import json
 import os
 import subprocess
@@ -28,10 +28,12 @@ if mode == "limit":
     print(os.environ.get("FAKE_LIMIT_TEXT", "usage limit reached"), file=sys.stderr); sys.exit(1)
 if mode == "auth":
     print("ERROR: unexpected status 401 Unauthorized", file=sys.stderr); sys.exit(1)
-if name == "gemini":
+if name == "gemini":  # Antigravity CLI: one stream-json "user" event in, events out
+    assert json.loads(prompt)["event"] == "user"
     if mode == "gemini-auth":
-        print(json.dumps({"error": {"type": "Error", "message": "Please set an Auth method", "code": 41}})); sys.exit(41)
-    print(json.dumps({"response": reply, "stats": {}})); sys.exit(0)
+        print("Error: authentication required", file=sys.stderr); sys.exit(1)
+    print(json.dumps({"event": "init", "init": {}}))
+    print(json.dumps({"event": "result", "result": {"status": "SUCCESS", "response": reply}})); sys.exit(0)
 if name == "codex":
     out = sys.argv[sys.argv.index("-o") + 1]
     Path(out).write_text(reply, encoding="utf-8")
@@ -55,7 +57,7 @@ def fakes(tmp_path, monkeypatch):
             exe = tmp_path / name
             exe.write_text(f"#!/bin/sh\nFAKE_NAME={name} exec '{sys.executable}' '{script}' \"$@\"\n")
             exe.chmod(0o755)
-        monkeypatch.setenv(f"{name.upper()}_PATH", str(exe))
+        monkeypatch.setenv("AGY_PATH" if name == "gemini" else f"{name.upper()}_PATH", str(exe))
     ai.set_order(["claude", "codex", "gemini", "ollama"])
 
     def calls():
@@ -120,10 +122,13 @@ def test_ask_with_app_data_uses_read_only_mcp(fakes, monkeypatch):
     monkeypatch.setenv("FAKE_MODE_CODEX", "limit")
     assert ai.ask("Which client?", mcp=True, purpose="ask") == "gemini says hello"
     gem = [c for c in fakes() if c["name"] == "gemini"][0]
-    assert gem["args"][gem["args"].index("--allowed-mcp-server-names") + 1] == "mapprospector"
-    cfg = json.loads((Path(gem["cwd"]) / ".gemini" / "settings.json").read_text(encoding="utf-8"))
+    assert gem["args"] == ["--input-format", "stream-json", "--output-format", "stream-json"]
+    assert json.loads(gem["prompt"])["message"]["content"] == "Which client?"
+    cfg = json.loads((Path(gem["cwd"]) / ".agents" / "mcp_config.json").read_text(encoding="utf-8"))
     srv = cfg["mcpServers"]["mapprospector"]
-    assert srv["includeTools"] == READ_ONLY and srv["env"]["MAPPROSPECTOR_MCP_READONLY"] == "1"
+    assert srv["enabledTools"] == READ_ONLY and srv["env"]["MAPPROSPECTOR_MCP_READONLY"] == "1"
+    agy = json.loads((Path.home() / ".gemini" / "antigravity-cli" / "settings.json").read_text(encoding="utf-8"))
+    assert agy["permissions"]["allow"] == ["mcp(mapprospector/*)"]  # headless runs can't ask
     assert srv["env"]["DATA_DIR"] == str(settings.DATA_DIR)  # the server reads your database, not an empty one
     assert srv["command"] == sys.executable and srv["cwd"] == str(settings.ROOT)
     codex = [c for c in fakes() if c["name"] == "codex"][0]["args"]

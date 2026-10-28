@@ -84,7 +84,7 @@ Recon date: 2026-10-18. Every LeadSnap feature found by running **rea** (`inspec
   - The question set is generated per category and city.
   - Engine adapters:
     - **Claude, ChatGPT and Gemini**, each through your own subscription with web search on (Claude Code, Codex CLI,
-      Gemini CLI; `app/providers/ai_engines.py`). No API keys. Each engine measures only itself, never a fallback.
+      Antigravity CLI; `app/providers/ai_engines.py`). No API keys. Each engine measures only itself, never a fallback.
     - Perplexity and Grok have no subscription CLI, so they aren't offered.
     - **Google AI Overviews:** optional, via a SERP API.
   - The same matrix, share-of-voice and sources maths as LeadSnap.
