@@ -138,3 +138,8 @@ def test_lead_search_demo_and_save(client):
                     headers={"HX-Request": "true"})
     assert "saved" in r.text
     assert db.one("SELECT COUNT(*) n FROM contacts")["n"] == 1
+
+
+def test_lead_search_says_when_filters_hide_everything(client):
+    page = client.get("/leads/search?niche=plumber&lat=30.27&lng=-97.74&max_rating=0.5")
+    assert "none passed your filters (rating at most 0.5)" in page.text and "No businesses matched" not in page.text
