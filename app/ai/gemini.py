@@ -36,7 +36,8 @@ class Gemini(Platform):
 
     def run(self, prompt, *, web, mcp, tools, timeout) -> str:
         # Runs in its own folder whose .agents/mcp_config.json lists only the MapProspector server (read-only tools).
-        work = settings.DATA_DIR / "ai" / "antigravity"
+        # One folder per kind of run, so an Ask and a draft running at the same time never rewrite each other's config.
+        work = settings.DATA_DIR / "ai" / "antigravity" / ("ask" if mcp else "draft")
         (work / ".agents").mkdir(parents=True, exist_ok=True)
         config: dict = {"mcpServers": {}}
         if mcp:
