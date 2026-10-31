@@ -46,5 +46,6 @@
     {% endfor %}
   </table></div>
 </div>
+{% elif q.niche and not error and found %}<div class="empty">Google found {{ found }} businesses, but none passed your filters{% if q.max_rating %} (rating at most {{ q.max_rating }}){% endif %}{% if q.max_reviews %} (reviews at most {{ q.max_reviews }}){% endif %}{% if q.no_website %} (no website){% endif %}. Loosen a filter to see them.</div>
 {% elif q.niche and not error %}<div class="empty">No businesses matched.</div>{% endif %}
 {% endblock %}

@@ -44,12 +44,13 @@ def opportunity_flags(b: dict, median_reviews: float | None) -> list[str]:
 @router.get("/leads/search")
 def leads_search(request: Request, niche: str = "", area: str = "", lat: str = "", lng: str = "",
                  no_website: int = 0, max_rating: str = "", max_reviews: str = ""):
-    results, error, median_reviews = [], "", None
+    results, error, median_reviews, found = [], "", None, 0
     if niche:
         try:
             results = search_businesses(niche, area, float(lat) if lat else None, float(lng) if lng else None)
         except Exception as exc:
             error = str(exc)
+        found = len(results)
         median_reviews = _median([r.get("review_count") for r in results])
         for r in results:
             r["flags"] = opportunity_flags(r, median_reviews)
@@ -71,7 +72,8 @@ def leads_search(request: Request, niche: str = "", area: str = "", lat: str = "
             r["saved"] = r.get("google_place_id") in saved
     return render(request, "leads/search.html", title="Find leads", results=results, error=error,
                   q={"niche": niche, "area": area, "lat": lat, "lng": lng, "no_website": no_website,
-                     "max_rating": max_rating, "max_reviews": max_reviews}, median_reviews=median_reviews)
+                     "max_rating": max_rating, "max_reviews": max_reviews}, median_reviews=median_reviews,
+                  found=found)
 
 
 @router.post("/leads/save-place")
