@@ -2,7 +2,7 @@
 
 Each engine gets the same local question and returns {"text": answer, "sources": [urls]}. All of them run through
 your own subscriptions (Settings → AI platforms), with web search on: Claude (Claude Code), ChatGPT (Codex CLI) and
-Gemini (Gemini CLI). No API keys. Each engine measures its own answers, so it never falls back to another platform.
+Gemini (Antigravity CLI). No API keys. Each engine measures its own answers, so it never falls back to another platform.
 """
 import re
 

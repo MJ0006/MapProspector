@@ -62,7 +62,7 @@ def main() -> None:
     data = Path(tempfile.mkdtemp(prefix="mp-guide-"))
     env = {**os.environ, "DATA_DIR": str(data), "MAPPROSPECTOR_ENV_FILE": str(data / "none.env"),
            "PATH": os.environ.get("PATH", ""), "CLAUDE_PATH": str(data / "no-claude"), "CODEX_PATH": str(data / "x"),
-           "GEMINI_PATH": str(data / "x"), "OLLAMA_HOST": "127.0.0.1:9"}
+           "AGY_PATH": str(data / "x"), "OLLAMA_HOST": "127.0.0.1:9"}
     srv = subprocess.Popen([sys.executable, "-m", "uvicorn", "app.main:app", "--port", str(PORT)], cwd=ROOT, env=env,
                            stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     try:

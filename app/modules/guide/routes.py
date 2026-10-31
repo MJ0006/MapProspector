@@ -132,13 +132,13 @@ KEYS = [
     },
     {
         "id": "advanced", "module": None, "title": "Advanced settings (usually leave empty)",
-        "keys": ["CLAUDE_PATH", "CODEX_PATH", "GEMINI_PATH", "OLLAMA_HOST", "DATA_DIR"],
+        "keys": ["CLAUDE_PATH", "CODEX_PATH", "AGY_PATH", "OLLAMA_HOST", "DATA_DIR"],
         "unlocks": "Only needed when the app can't find an AI tool by itself, Ollama runs elsewhere, or (outside the "
                    "Windows app) you want the data in another folder.",
         "cost": "",
         "steps": [
-            "<code>CLAUDE_PATH</code> / <code>CODEX_PATH</code> / <code>GEMINI_PATH</code>: the full path to "
-            "<code>claude</code>, <code>codex</code> or <code>gemini</code> if Settings says &ldquo;not installed&rdquo; "
+            "<code>CLAUDE_PATH</code> / <code>CODEX_PATH</code> / <code>AGY_PATH</code>: the full path to "
+            "<code>claude</code>, <code>codex</code> or <code>agy</code> if Settings says &ldquo;not installed&rdquo; "
             "although it is (find it with <code>where codex</code> in a terminal).",
             "<code>OLLAMA_HOST</code>: Ollama's address if it isn't <code>127.0.0.1:11434</code>.",
             "<code>DATA_DIR</code>: where the database and vaults live when running from VS Code (the Windows app always "
@@ -158,10 +158,12 @@ AI_STEPS = [
                "In a terminal: <code>npm install -g @openai/codex</code>.",
                "Settings → AI platforms → ChatGPT → <b>Sign in</b> (or run <code>codex login</code>) and choose "
                "<b>Sign in with ChatGPT</b> in the browser."]},
-    {"name": "gemini", "title": "Gemini (Login with Google)",
-     "steps": ["With Node.js installed: <code>npm install -g @google/gemini-cli</code>.",
-               "Settings → AI platforms → Gemini → <b>Sign in</b> (or run <code>gemini</code>) and choose "
-               "<b>Login with Google</b>. A free daily allowance applies; a Google AI plan raises it."]},
+    {"name": "gemini", "title": "Gemini (Antigravity CLI, sign in with Google)",
+     "steps": ["Install Antigravity CLI. In Windows PowerShell: "
+               "<code>irm https://antigravity.google/cli/install.ps1 | iex</code> (macOS/Linux: "
+               "<code>curl -fsSL https://antigravity.google/cli/install.sh | bash</code>).",
+               "Settings → AI platforms → Gemini → <b>Sign in</b> (or run <code>agy</code>) and choose "
+               "<b>Google OAuth</b>. Gemini CLI no longer works with personal Google accounts."]},
     {"name": "ollama", "title": "Local models (Ollama)",
      "steps": ['Install Ollama from <a href="https://ollama.com/" target="_blank" rel="noopener">ollama.com</a>.',
                "In a terminal: <code>ollama pull llama3.1</code> (or another model that fits your PC).",

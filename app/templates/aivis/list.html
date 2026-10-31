@@ -3,7 +3,7 @@
 <div class="page-head">
   <div><h1>AI visibility</h1><p>Ask AI assistants what local customers ask, and see who they recommend.</p></div>
 </div>
-{% if not engines %}<div class="notice warn">No engine available. Set up Claude, ChatGPT (Codex CLI) or Gemini (Gemini CLI) on <a href="/settings#ai">Settings → AI platforms</a>; checks use your subscriptions, no API keys.</div>
+{% if not engines %}<div class="notice warn">No engine available. Set up Claude, ChatGPT (Codex CLI) or Gemini (Antigravity CLI) on <a href="/settings#ai">Settings → AI platforms</a>; checks use your subscriptions, no API keys.</div>
 {% else %}<div class="notice">Engines: <b>{{ engines | join(", ") }}</b>. Each check asks 5 questions per engine{{ "; Google AI Overviews are mapped on a 5×5 grid via DataForSEO" if modules.dataforseo }}.</div>{% endif %}
 <form class="card" method="post" action="/aivis">
   <input type="hidden" name="place_id" value="{{ place.id if place else '' }}">

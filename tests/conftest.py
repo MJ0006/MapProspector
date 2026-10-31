@@ -27,13 +27,13 @@ def isolated(tmp_path, monkeypatch):
     # Never call the real claude CLI from tests; tests that need AI patch app.ai explicitly.
     import shutil
     real_which = shutil.which
-    ai_clis = {"claude", "codex", "gemini"}
+    ai_clis = {"claude", "codex", "gemini", "agy"}
     monkeypatch.setattr(shutil, "which", lambda name, *a, **k: None if name in ai_clis else real_which(name, *a, **k))
     from app.ai import ollama
     monkeypatch.setattr(ollama, "models", lambda: None)  # never reach a real Ollama
-    for var in ("HOME", "USERPROFILE", "APPDATA"):  # settings.claude_exe() also looks in these
+    for var in ("HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA"):  # settings.claude_exe() also looks in these
         monkeypatch.setenv(var, str(tmp_path / "home"))
-    for var in ("CLAUDE_PATH", "CODEX_PATH", "GEMINI_PATH", "GEMINI_API_KEY", "OLLAMA_HOST"):
+    for var in ("CLAUDE_PATH", "CODEX_PATH", "GEMINI_PATH", "AGY_PATH", "GEMINI_API_KEY", "OLLAMA_HOST"):
         monkeypatch.delenv(var, raising=False)
     db.init(tmp_path / "test.db")
     yield tmp_path

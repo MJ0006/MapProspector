@@ -91,7 +91,7 @@ def available(*, web: bool = False, mcp: bool = False) -> bool:
 def missing_message(*, web: bool = False, mcp: bool = False) -> str:
     need = " that can search the web" if web else " that can read your app data" if mcp else ""
     return (f"No AI platform{need} is ready. Set one up on Settings → AI platforms "
-            "(Claude Code, ChatGPT's Codex CLI, Gemini CLI, or Ollama for local drafts).")
+            "(Claude Code, ChatGPT's Codex CLI, Antigravity CLI for Gemini, or Ollama for local drafts).")
 
 
 def last_platform() -> str | None:

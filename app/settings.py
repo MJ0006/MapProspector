@@ -36,7 +36,7 @@ def modules() -> dict[str, bool]:
 
 
 def find_cli(name: str, override: str) -> str | None:
-    """Full path of an AI command-line tool (`claude`, `codex`, `gemini`). Apps started from the Start menu
+    """Full path of an AI command-line tool (`claude`, `codex`, `agy`). Apps started from the Start menu
     can have an older PATH than a fresh terminal, so the usual install folders are checked too.
     The `override` setting (e.g. CLAUDE_PATH) wins when set."""
     if env(override):
