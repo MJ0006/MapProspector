@@ -5,7 +5,7 @@
 # test suite with that Python, packages the app, then starts the packaged app once to check it works.
 #
 # Get the installer: every green build of main replaces MapProspector-Setup.exe on the "latest" release
-# (releases/latest/download/MapProspector-Setup.exe, linked from the README). Any run also has it under
+# (releases/latest/download/MapProspector-Setup.exe, linked from the README). Any run also keeps it for 7 days under
 # Artifacts → MapProspector-Setup. Pushing a tag like desktop-v1.0.0 makes a numbered release.
 
 name: Windows app
@@ -106,10 +106,12 @@ jobs:
           exit 0
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        continue-on-error: true # a full artifact storage quota must not stop main from publishing the installer below
         with:
           name: MapProspector-Setup
           path: desktop/dist/MapProspector-Setup-*.exe
           if-no-files-found: error
+          retention-days: 7 # each installer is ~135 MB; the release below keeps the newest one
 
       - name: Attach to release
         if: startsWith(github.ref, 'refs/tags/desktop-v')
